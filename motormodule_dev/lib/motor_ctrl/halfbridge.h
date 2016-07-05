@@ -22,10 +22,12 @@ struct halfbridge
     halfbridge(PinName pin_input, PinName pin_enable, const unsigned period_us)
     : input(pin_input)
     , enable(pin_enable)
+    , duty_cycle(0.05)
     {
-        enable = 0;
-        input = .0;
-        input.period_us(period_us);
+        enable = .0;
+        input  = .0;
+        enable.period_us(period_us);
+        input .period_us(period_us);
     }
 
     void set_mode(const output_t mode) {

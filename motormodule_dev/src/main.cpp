@@ -16,27 +16,20 @@ namespace supreme {
 
 class main_app {
 
-    motor_ctrl::trapezoid ctrl;
     Serial msg;
-    //PwmOut myled;
-    unsigned state;
+    motor_ctrl::trapezoid ctrl;
 
 public:
     main_app()
-    : ctrl()
-    , msg(USBTX, USBRX)
-    // , myled(LED1)
-    , state(0)
+    : msg(USBTX, USBRX)
+    , ctrl(msg)
     {
         msg.baud(115200);
-        // myled = 0.0;
     }
 
     void step() {
         ctrl.step();
-        wait(0.01);
-        state = 1 - state;
-        // myled = 1.0 * state;
+        wait(0.01); // 10ms
 
         // float u = u_us.read();
         // float v = v_us.read();
@@ -45,7 +38,10 @@ public:
         motor_ctrl::hall_sensor_3e::bin_state_t st = ctrl.sensor.get_binary_state();
         unsigned pos = ctrl.sensor.get_state();
         //msg.printf("u=%1.2fV v=%1.2fV w=%1.2fV \n", u, v, w_us);
-        msg.printf("%u %u %u %u\n", st.h1, st.h2, st.h3, pos);
+        msg.printf("%u %u %u | %u | % d % d % d\n", st.h1, st.h2, st.h3, pos
+                                                  , motor_ctrl::lut::ctrl[pos][0]
+                                                  , motor_ctrl::lut::ctrl[pos][1]
+                                                  , motor_ctrl::lut::ctrl[pos][2]);
 
     } // loop
 

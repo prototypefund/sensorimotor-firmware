@@ -20,13 +20,14 @@ namespace supreme { namespace motor_ctrl {
 +---+----------+------------*/
 
 namespace lut {
-    //TODO reorder states aacording to datasheed
-    const output_t ctrl[6][3] = { {flt, gnd, pwm}
+    const output_t ctrl[7][3] = { {flt, gnd, pwm} /* normal cases, 0..5 */
                                 , {pwm, gnd, flt}
                                 , {pwm, flt, gnd}
                                 , {flt, pwm, gnd}
                                 , {gnd, pwm, flt}
-                                , {gnd, flt, pwm} };
+                                , {gnd, flt, pwm}
+                                /* set all floating in case of fault */
+                                , {flt, flt, flt} };
 
     const unsigned stat[6][3] = { { 1, 0, 1 }
                                 , { 1, 0, 0 }
@@ -58,7 +59,7 @@ public:
     }
 
     void read() {
-        sensor.h1 = hall_1.read(); //TODO put to interupt service routine
+        sensor.h1 = hall_1.read(); //TODO use interrupts
         sensor.h2 = hall_2.read();
         sensor.h3 = hall_3.read();
     }
@@ -69,7 +70,7 @@ public:
             if (sensor.h1 == lut::stat[i][0]
             and sensor.h2 == lut::stat[i][1]
             and sensor.h3 == lut::stat[i][2]) return i;
-        return 0;
+        return 6; // fault case
     }
 
     const bin_state_t& get_binary_state() const { return sensor; }
@@ -77,6 +78,7 @@ public:
 
 class trapezoid {
 public:
+    Serial& msg;
 
     enum direction_t {
         forwards = 0,
@@ -86,20 +88,21 @@ public:
     hall_sensor_3e sensor;
     brushless_dc   motor;
 
-    trapezoid()
-    : dir(forwards)
+    trapezoid(Serial& msg)
+    : msg(msg)
+    , dir(forwards)
     , sensor(D11, D12, D13)
     , motor(1000 /* 1kHz */) {}
 
     void step() {
 
         sensor.read();
-        //unsigned state = sensor.get_state();
+        unsigned state = sensor.get_state();
 
         //if (dir == forwards)
-        // motor.set_mode( lut::ctrl[state][0]
-        //               , lut::ctrl[state][1]
-        //               , lut::ctrl[state][2] );
+        motor.set_mode( lut::ctrl[state][0]
+                      , lut::ctrl[state][1]
+                      , lut::ctrl[state][2] );
         //else TODO other direction
     }
 };
