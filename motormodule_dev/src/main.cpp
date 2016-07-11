@@ -29,13 +29,13 @@ public:
 
     void step() {
         ctrl.step();
-        wait(0.01); // 10ms
+        wait(0.1); // 10ms
 
         // float u = u_us.read();
         // float v = v_us.read();
         // float w = w_us.read();
 
-        motor_ctrl::hall_sensor_3e::bin_state_t st = ctrl.sensor.get_binary_state();
+        motor_ctrl::HallSensor3Elements::bin_state_t st = ctrl.sensor.get_binary_state();
         unsigned pos = ctrl.sensor.get_state();
         //msg.printf("u=%1.2fV v=%1.2fV w=%1.2fV \n", u, v, w_us);
         msg.printf("%u %u %u | %u | % d % d % d\n", st.h1, st.h2, st.h3, pos
