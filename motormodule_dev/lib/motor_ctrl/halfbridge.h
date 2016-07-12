@@ -22,7 +22,7 @@ struct halfbridge
     halfbridge(PinName pin_input, PinName pin_enable, const unsigned period_us)
     : input(pin_input)
     , enable(pin_enable)
-    , duty_cycle(0.40)
+    , duty_cycle(.0)
     {
         enable = .0;
         input  = .0;
@@ -46,7 +46,9 @@ struct halfbridge
             input = .0;
             break;
         }
-    };
+    }
+
+    void set_duty_cycle(float dc) { duty_cycle = dc; }
 
 };
 

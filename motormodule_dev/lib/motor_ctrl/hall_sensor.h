@@ -25,7 +25,7 @@ public:
     void reg_events(T* tptr, void (T::*mptr)(void)) {
         event.rise(tptr, mptr);
         event.fall(tptr, mptr);
-        sensor.mode(PullUp); // must be set again after attaching function
+        sensor.mode(PullUp); // must be set again after attaching ISR
     }
 };
 
