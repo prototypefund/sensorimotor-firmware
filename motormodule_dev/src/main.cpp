@@ -25,25 +25,23 @@ public:
     , ctrl(msg)
     {
         msg.baud(115200);
+        ctrl.set_velocity(0.60);
     }
 
     void step() {
-        ctrl.step();
+        //ctrl.step(); //TODO how to prevent collisions
+
         wait(0.1); // 10ms
 
-        // float u = u_us.read();
-        // float v = v_us.read();
-        // float w = w_us.read();
+        // float u = u_us.read(); //TODO use voltage of currently floating h-bridge as speed signal
 
         motor_ctrl::HallSensor3Elements::bin_state_t st = ctrl.sensor.get_binary_state();
         unsigned pos = ctrl.sensor.get_state();
-        //msg.printf("u=%1.2fV v=%1.2fV w=%1.2fV \n", u, v, w_us);
         msg.printf("%u %u %u | %u | % d % d % d\n", st.h1, st.h2, st.h3, pos
                                                   , motor_ctrl::lut::ctrl[pos][0]
                                                   , motor_ctrl::lut::ctrl[pos][1]
                                                   , motor_ctrl::lut::ctrl[pos][2]);
-
-    } // loop
+    } // step
 
 }; // class main_app
 
