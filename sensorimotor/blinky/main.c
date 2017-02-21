@@ -21,13 +21,21 @@
 #include <util/delay.h>
 
 int main (void) {
+	/*DDRB |= (1 << PB1); // PWM
+	DDRD |= (1 << PD2); // DIR
+	DDRD |= (1 << PD4); // VSO
+	DDRD |= (1 << PD6); // DIS*/
+	DDRD |= (1 << PD5); // LED
+	
+//	PORTD = (1 << PD4); // VSO ON, (enable H-Bridge)
 
-   DDRD |= (1 << PD5);
+	//PORTB = (1 << PB1); // PWM PIN HIGH, full drive
 
-   while(1) {
-       PORTD ^= (1 << PD5);
-       _delay_ms(500);
-   }
+	while(1) {
+		PORTD ^= (1 << PD5); // LED
+		//PORTD ^= (1 << PD2); // switch DIR       	
+		_delay_ms(100);
+	}
 
    return 0;
 }
