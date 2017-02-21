@@ -1,0 +1,3 @@
+[submodule "sensorimotor/xpcc"]
+	path = sensorimotor/xpcc
+	url = https://github.com/roboterclubaachen/xpcc.git
