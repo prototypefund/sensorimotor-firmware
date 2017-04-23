@@ -80,7 +80,7 @@ initialize()
 
 	D0::connect(Uart0::Rx);
 	D1::connect(Uart0::Tx);
-	Uart0::initialize<systemClock, 9600>();
+	Uart0::initialize<systemClock, 1000000>(); // 1Mbaud/s
 
 	// xpcc::Clock initialization
 	// Clear Timer on Compare Match Mode

@@ -9,6 +9,7 @@
 
 #include <xpcc/architecture/platform.hpp>
 #include <sensorimotor_core.hpp>
+#include <communication.hpp>
 
 
 /* this is called once TCNT0 = OCR0A = 249 *
@@ -30,33 +31,34 @@ int main()
 	led_D5::setOutput();
 	supreme::sensorimotor_core ux;
 
-	/* configure timer 0 */
+	/* Design of the 1kHz/100Hz main loop:
+	 * 16Mhz clock, prescaler 64 -> 16.000.000 / 64 = 250.000 increments per second
+	 * diveded by 1000 -> 250 increments per ms
+	 * hence, timer compare register to 250-1 -> ISR inc ms counter -> modulo 10 -> 100Hz loop
+	 *
+	 * configure timer 0:
+	 */
 	TCCR0A = (1<<WGM01);             // CTC mode
 	TCCR0B = (1<<CS01) | (1<<CS00);  // set prescaler to 64
-	OCR0A = 249;
+	OCR0A = 249;                     // set timer compare register to 250-1
 	TIMSK0 = (1<<OCIE0A);            // enable compare interrupt
-
 
 	unsigned long total_cycles = 0;
 
+	supreme::helloworld();
+	supreme::communication_ctrl com(ux);
+
+
 	while(1) /* main loop */
 	{
-		while (cycles > 0); // wait until cycles == 0
-		Board::led_D5::set();   // green led on
+		while (cycles > 0);     // wait until cycles == 0
+		//TODO Board::led_D5::set();   // green led on, begin of cycle
 		ux.step();
+		com.step();
 
-		if (total_cycles % 100 == 0)
-			serialStream /*<< "\r"*/ << total_cycles << "\n\r";
-
-		/* design of the proper 1kHz control loop + 100Hz com loop:
-		 * 16Mhz clock, prescaler 64 -> 16.000.000 / 64 = 250.000 increments per second
-		 * diveded by 1000 -> 250 increments per ms
-		 * hence, timer compare register to 250 -> ISR inc ms counter -> modulo 10 -> 100Hz com loop
-		 */
-
-		 ++total_cycles;
-		 Board::led_D5::reset(); // green led off
-		 while (cycles == 0); // eat up rest of the time
+		++total_cycles;
+		//TODO Board::led_D5::reset(); // green led off, end of cycle
+		while (cycles == 0);    // eat up rest of the time
 	}
 	return 0;
 }

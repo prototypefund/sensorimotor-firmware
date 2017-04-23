@@ -6,10 +6,10 @@ namespace supreme {
 class motor_ifx9201sg {
 public:
 
-    motor_ifx9201sg() {
-
+    motor_ifx9201sg()
+    {
         /* setup motor bridge */
-        motor::DIS::set();   // motor bride disabled by default
+        disable();           // motor bride disabled by default
         motor::VSO::set();   // enable motor bridge logic
         motor::DIR::set();   // set direction
         motor::PWM::reset(); // disable pwm
@@ -20,15 +20,30 @@ public:
                | (1<<CS11);                // set prescaler to 8 -> 7812,5 Hz
 
         OCR1A = 0; // set pwm to zero duty cycle
+
+        /* TODO: set up a second pwm on the disable pin and synchronize the duty_cycle_shares
+         * TODO: test if disabling the h-bridge does change the motors behavior, in order to
+         *       utilize this as a second mode.
+         *
+         *    +----+          +----+
+         *    | on | freerun  | on | freerun
+         *    +    +----------+    +----------+
+         *              +-----+         +-----+
+         *              | dis |         | dis |     TODO: can this be used to break?
+         *    ----------+     +---------+     +-----
+         */
     }
 
     void toggle_direction() { motor::DIR::toggle(); }
-    void set_pwm(uint8_t pwm) { OCR1A = pwm; }
+    void set_direction(bool dir) {
+        if (dir) motor::DIR::set();
+        else motor::DIR::reset();
+    }
+
+    void set_pwm(uint8_t dc) { OCR1A = dc; }
 
     void enable() { motor::DIS::reset(); }
     void disable() { motor::DIS::set(); }
-
 };
-
 
 } /* namespace supreme */
