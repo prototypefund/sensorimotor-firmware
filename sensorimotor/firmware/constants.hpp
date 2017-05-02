@@ -9,6 +9,6 @@
 */
 
 namespace supreme {
-    const unsigned lower_bound = 300;
-    const unsigned upper_bound = 700;
+    const unsigned lower_bound = 32;
+    const unsigned upper_bound = 991;
 }

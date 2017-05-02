@@ -64,8 +64,8 @@ public:
 		last_position = value;
 	}
 
-	void inc_pwm() { if (voltage_pwm < 128) motor.set_pwm(++voltage_pwm); }
-	void dec_pwm() { if (voltage_pwm > 0  ) motor.set_pwm(--voltage_pwm); }
+	//void inc_pwm() { if (voltage_pwm < 128) motor.set_pwm(++voltage_pwm); }
+	//void dec_pwm() { if (voltage_pwm > 0  ) motor.set_pwm(--voltage_pwm); }
 
 	void set_pwm(uint8_t pwm) { if (pwm <= 128  ) motor.set_pwm(pwm); }
 
