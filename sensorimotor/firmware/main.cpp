@@ -16,14 +16,22 @@
  * resulting in a 1 ms cycle time, 1kHz    */
 
 volatile unsigned int cycles = 0;
+volatile bool timer_state = false;
 
 ISR (TIMER0_COMPA_vect)
 {
 	++cycles;
 	if (cycles > 9)
 		cycles = 0;
+	timer_state = !timer_state;
 }
 
+/*
+ISR ( USART_RX_vect )
+{
+	com.step_irq();
+}
+*/
 
 int main()
 {
@@ -48,10 +56,17 @@ int main()
 	supreme::helloworld();
 	supreme::communication_ctrl com(ux);
 
+	bool old_timer_state = false;
 
 	while(1) /* main loop */
 	{
-		while (cycles > 0);     // wait until cycles == 0
+		while (cycles > 0) {
+			if (timer_state != old_timer_state) {
+				com.step_irq();
+				old_timer_state = timer_state;
+			}
+		};     // wait until cycles == 0
+		// consider using xpcc::delayNanoseconds(delayTime);
 		//TODO Board::led_D5::set();   // green led on, begin of cycle
 		ux.step();
 		com.step();
