@@ -12,11 +12,11 @@ public:
     : value()
     {
         /* initialize ADC */
-        A0::setInput();
+        A1::setInput();
         Adc::initialize<clock, 115000>();
         Adc::setReference(Adc::Reference::InternalVcc);
-        value = Adc::readChannel(7);
-        Adc::setChannel(7);
+        value = Adc::readChannel(1); //TODO channel no. configurable
+        Adc::setChannel(1);
         Adc::startConversion();
     }
 
@@ -24,7 +24,7 @@ public:
         if (Adc::isConversionFinished()){
             value = Adc::getValue();
             // restart the conversion
-            Adc::setChannel(7);
+            Adc::setChannel(1);
             Adc::startConversion();
         }
     }

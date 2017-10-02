@@ -1,14 +1,33 @@
 #include <xpcc/architecture/platform.hpp>
+#include <avr/eeprom.h>
+/*TODO create command to write new id to eeprom, standard ID is max. ID*/
 
 namespace supreme {
 
-	inline void helloworld() {
-		/* send hello */
-		Uart0::write('u');
-		Uart0::write('x');
-		Uart0::write('0');
-	}
 
+template <unsigned N>
+class sendbuffer {
+	uint16_t  ptr = 0;
+	uint8_t   buffer[N];
+public:
+	void add(uint8_t byte) {
+		if (ptr < N)
+			buffer[ptr++] = byte;
+	}
+	void flush() {
+		if (ptr == 0) return;
+		rs485::read_disable::set();
+		rs485::drive_enable::set();
+		for (uint16_t i = 0; i < ptr; ++i)
+			Uart0::write(buffer[i]);
+		//Uart0::write(buffer, ptr);
+		ptr = 0;
+		Uart0::flushWriteBuffer();
+		xpcc::delayMilliseconds(1);
+		rs485::drive_enable::reset();
+		rs485::read_disable::reset();
+	}
+};
 
 class communication_ctrl {
 
@@ -20,6 +39,7 @@ class communication_ctrl {
 		toggle_led,
 		release_mode,
 		ping,
+		set_id,
 	};
 
 	enum command_state_t {
@@ -32,9 +52,11 @@ class communication_ctrl {
 	};
 
 	supreme::sensorimotor_core&  ux;
-	uint8_t                      buffer;
+	uint8_t                      buffer = 0; //TODO rename to recv_buffer
+	sendbuffer<16>               send;
 
-	const uint8_t                motor_id = 17;
+	uint8_t                      motor_id = 127; // set to default
+	uint8_t                      target_id = 127;
 
 	/* motor related */
 	bool                         direction  = false;
@@ -52,8 +74,28 @@ public:
 
 	communication_ctrl(supreme::sensorimotor_core& ux)
 	: ux(ux)
-	{}
+	, send()
+	{
+		read_id_from_EEPROM();
 
+		rs485::drive_enable::setOutput();
+		rs485::drive_enable::reset();
+
+		rs485::read_disable::setOutput();
+		rs485::read_disable::reset();
+	}
+
+	void read_id_from_EEPROM() {
+		eeprom_busy_wait();
+		uint8_t read_id = eeprom_read_byte((uint8_t*)23);
+		if (read_id)
+			motor_id = read_id & 0x7F;
+	}
+
+	void write_id_to_EEPROM(uint8_t new_id) {
+		eeprom_busy_wait();
+		eeprom_write_byte((uint8_t*)23, (new_id | 0x80));
+	}
 
 	command_state_t waiting_for_id()
 	{
@@ -67,6 +109,7 @@ public:
 				return (motor_id == buffer) ? pending : finished;
 
 			case set_voltage:
+			case set_id:
 				return (motor_id == buffer) ? reading : eating;
 
 			default: /* unknown command */
@@ -80,9 +123,9 @@ public:
 		{
 			case data_requested:
 				position = ux.get_position();
-				Uart0::write(0x80); /* 1000.0000 */
-				Uart0::write((position >> 8) & 0xff); //TODO transmit, leaving MSB 0
-				Uart0::write( position       & 0xff);
+				send.add(0x80); /* 1000.0000 */
+				send.add((position >> 8) & 0xff); //TODO transmit, leaving MSB 0
+				send.add( position       & 0xff);
 				break;
 
 			case toggle_enable:
@@ -100,18 +143,25 @@ public:
 
 			case toggle_led: //TODO: apply pwm to LED
 				if (led_state) {
-					Board::led_D5::reset();
+					led::yellow::reset();
 					led_state = false;
 				}
 				else {
-					Board::led_D5::set();
+					led::yellow::set();
 					led_state = true;
 				}
 				break;
 
 			case ping:
-				Uart0::write(0xE1); /* 1110.0001 */
-				Uart0::write(motor_id);
+				send.add(0xE1); /* 1110.0001 */
+				send.add(motor_id);
+				break;
+
+			case set_id:
+				write_id_to_EEPROM(target_id);
+				read_id_from_EEPROM();
+				send.add(0x71); /* 1011.0001 */
+				send.add(motor_id);
 				break;
 
 			default: /* unknown command */
@@ -130,6 +180,10 @@ public:
 		{
 			case set_voltage:
 				target_pwm = buffer;
+				return pending;
+
+			case set_id:
+				target_id = buffer;
 				return pending;
 
 			default: /* unknown command */
@@ -152,6 +206,7 @@ public:
 			case 0xB1: /* 1011.0001 */ cmd_id = set_voltage;
 			                           direction = buffer & 0x1; break;
 			case 0xE0: /* 1110.0000 */ cmd_id = ping;            break;
+			case 0x70: /* 1000.0000 */ cmd_id = set_id;          break;
 
 			default: /* unknown command */
 				return finished;
@@ -191,6 +246,7 @@ public:
 				return;
 
 			case finished:
+				send.flush();
 				cmd_id = no_command;
 				cmd_state = awaiting;
 				/* anything else todo? */

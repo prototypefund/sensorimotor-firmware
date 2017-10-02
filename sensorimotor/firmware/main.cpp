@@ -36,7 +36,9 @@ ISR ( USART_RX_vect )
 int main()
 {
 	Board::initialize();
-	led_D5::setOutput();
+	led::yellow::setOutput();
+	led::red::setOutput();
+
 	supreme::sensorimotor_core ux;
 
 	/* Design of the 1kHz/100Hz main loop:
@@ -53,7 +55,6 @@ int main()
 
 	unsigned long total_cycles = 0;
 
-	supreme::helloworld();
 	supreme::communication_ctrl com(ux);
 
 	bool old_timer_state = false;
@@ -67,12 +68,12 @@ int main()
 			}
 		};     // wait until cycles == 0
 		// consider using xpcc::delayNanoseconds(delayTime);
-		//TODO Board::led_D5::set();   // green led on, begin of cycle
+		led::red::set();   // red led on, begin of cycle
 		ux.step();
 		com.step();
 
 		++total_cycles;
-		//TODO Board::led_D5::reset(); // green led off, end of cycle
+		led::red::reset(); // red led off, end of cycle
 		while (cycles == 0);    // eat up rest of the time
 	}
 	return 0;

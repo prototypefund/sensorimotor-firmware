@@ -39,8 +39,16 @@ using D11 = GpioB3;
 using D12 = GpioB4;
 using D13 = GpioB5;
 
-using led_D5 = D5;
+/* leds */
+namespace led {
+	using yellow = D5;
+	using red    = D7;
+}
 
+namespace rs485 {
+	using drive_enable = D3;
+	using read_disable = A0; 
+}
 
 /* motor control outputs */
 namespace motor {

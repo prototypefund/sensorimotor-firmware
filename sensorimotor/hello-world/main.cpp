@@ -7,94 +7,46 @@
 
 */
 
+/*
+   Check serial output with minicom
+   $ minicom -D /dev/ttyUSB1 -b 1000000
+*/
+
 #include <xpcc/architecture/platform.hpp>
+#include <../firmware/motor_ifx9201sg.hpp>
 
 using namespace xpcc::atmega;
 typedef xpcc::avr::SystemClock clock;
 
-const unsigned lower_bound = 150;
-const unsigned upper_bound = 900;
-
 int main()
 {
-	Board::initialize();
-	led_D5::setOutput();
-	//led_D5::set();
+	initialize();
 
-	motor::VSO::set(); // enable motor bridge logic
-	motor::DIR::set(); // set direction
-	motor::PWM::set(); // set full speed
+	led::yellow::setOutput(); // yellow
+	led::red::setOutput(); // red
+	D3::setOutput();     // drive enable RS485
+	D3::reset();
 
+	supreme::motor_ifx9201sg  motor;
 
-	/* setup pwm */
+	led::red::toggle();
+	uint32_t value = 0;
 
-	TCCR1A = (1<<WGM10)|(1<<COM1A1); // Set up the two Control registers of Timer1.
-	TCCR1B = (1<<WGM12)              // Wave Form Generation is Fast PWM 8 Bit,
-	      // | (1<<CS12);               // OC1A and OC1B are cleared on compare match
-	      // | (1<<CS10);
-	         | (1<<CS11);            // set prescaler to 8 -> 7812,5 Hz
+	motor.enable();
+	motor.set_pwm(32);
 
-	OCR1A = 32;
-
-
-	A0::setInput();
-	Adc::initialize<clock, 115000>();
-	Adc::setReference(Adc::Reference::InternalVcc);
-
-	uint16_t value = Adc::readChannel(7);
-
-
-
-	Adc::setChannel(7);
-	Adc::startConversion();
-
-	bool dir_left = true;
-
-	while (1)
+	while(true)
 	{
-		//Board::led_D5::toggle();
-		//motor::DIR::toggle();
-		/*motor::PWM::set();
-		xpcc::delayMilliseconds(1);
-		motor::PWM::reset();*/
-		xpcc::delayMilliseconds(10);
+		value++;
+		led::yellow::toggle();
+		led::red::toggle();
+		motor.toggle_direction();
 
-
-		if (Adc::isConversionFinished())
-		{
-			value = Adc::getValue();
-			if (dir_left && value < lower_bound) {
-				dir_left = false;
-				motor::DIR::toggle();
-			} else if (!dir_left && value > upper_bound){
-				dir_left = true;
-				motor::DIR::toggle();
-			}
-
-
-
-			//OCR1A = value >> 2; // turn to 8 bit
-			//xpcc::delayMilliseconds(5);
-			//xpcc::delayMilliseconds(5);
-			// restart the conversion
-			Adc::setChannel(7);
-			Adc::startConversion();
-		}
+		xpcc::delayMilliseconds(1000);
+		rs485::drive_enable::set(); // drive enable RS485
 		serialStream << value << "\n\r";//xpcc::endl;
+		rs485::drive_enable::reset(); // drive disable RS485
+
 	}
 	return 0;
 }
-
-
-
-
-
-
-
-
-
-//		xpcc::delayMilliseconds(Board::Button::read() ? 125 : 100);
-//#ifdef XPCC_BOARD_HAS_LOGGER
-//		static uint32_t counter(0);
-//		XPCC_LOG_INFO << "Loop counter: " << (counter++) << xpcc::endl;
-//#endif
