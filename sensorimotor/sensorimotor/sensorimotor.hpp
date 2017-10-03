@@ -45,6 +45,7 @@ namespace led {
 	using red    = D7;
 }
 
+/* communication */
 namespace rs485 {
 	using drive_enable = D3;
 	using read_disable = A0; 
