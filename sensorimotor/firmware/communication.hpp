@@ -43,6 +43,7 @@ class communication_ctrl {
 	};
 
 	enum command_state_t {
+		syncing,
 		awaiting,
 		get_id,
 		reading,
@@ -65,10 +66,11 @@ class communication_ctrl {
 
 	/* TODO struct? */
 	command_id_t                 cmd_id    = no_command;
-	command_state_t              cmd_state = awaiting;
+	command_state_t              cmd_state = syncing;
 	unsigned int                 cmd_bytes_received = 0;
 
 	bool                         led_state = false;
+	bool                         sync_state = false;
 
 public:
 
@@ -192,6 +194,22 @@ public:
 		}
 	}
 
+	command_state_t get_sync_bytes()
+	{
+		if (buffer != 0xFF) {
+			sync_state = false;
+			return finished;
+		}
+
+		if (sync_state) {
+			sync_state = false;
+			return awaiting;
+		}
+
+		sync_state = true;
+		return syncing;
+	}
+
 	command_state_t search_for_command()
 	{
 		switch(buffer)
@@ -222,6 +240,11 @@ public:
 	{
 		switch(cmd_state)
 		{
+			case syncing:
+				if (!Uart0::read(buffer)) return false;
+				cmd_state = get_sync_bytes();
+				break;
+
 			case awaiting:
 				if (!Uart0::read(buffer)) return false;
 				cmd_state = search_for_command();
@@ -249,7 +272,7 @@ public:
 			case finished:
 				send.flush();
 				cmd_id = no_command;
-				cmd_state = awaiting;
+				cmd_state = syncing;
 				/* anything else todo? */
 				break;
 

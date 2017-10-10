@@ -5,7 +5,7 @@ import argparse
 import sys
 
 
-default_port = '/dev/ttyUSB0'
+default_port = '/dev/ttyUSB1'
 baudrate = 1000000
 
 
@@ -25,6 +25,8 @@ def eat(ser):
 
 def ping(ser, board_id):
 	eat(ser)
+	ser.write(chr(255))      # sync 1
+	ser.write(chr(255))      # sync 2
 	ser.write(chr(224))      # send ping 0xE0
 	ser.write(chr(board_id)) # send id
 
@@ -39,6 +41,8 @@ def ping(ser, board_id):
 
 def set_id(ser, board_id, new_id):
 	eat(ser)
+	ser.write(chr(255))      # sync 1
+	ser.write(chr(255))      # sync 2
 	ser.write(chr(112))      # send set_id command 0x70
 	ser.write(chr(board_id)) # send old id
 	ser.write(chr(new_id))   # send new id
