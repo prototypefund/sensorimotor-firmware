@@ -63,14 +63,13 @@ int main()
 	{
 		while (cycles > 0) {
 			if (timer_state != old_timer_state) {
-				com.step_irq();
+				com.step();
 				old_timer_state = timer_state;
 			}
 		};     // wait until cycles == 0
 		// consider using xpcc::delayNanoseconds(delayTime);
 		led::red::set();   // red led on, begin of cycle
 		ux.step();
-		com.step();
 
 		++total_cycles;
 		led::red::reset(); // red led off, end of cycle

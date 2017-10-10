@@ -124,6 +124,7 @@ public:
 			case data_requested:
 				position = ux.get_position();
 				send.add(0x80); /* 1000.0000 */
+				send.add(motor_id);
 				send.add((position >> 8) & 0xff); //TODO transmit, leaving MSB 0
 				send.add( position       & 0xff);
 				break;
@@ -217,56 +218,50 @@ public:
 	}
 
 
-	void receive_command()
+	bool receive_command()
 	{
 		switch(cmd_state)
 		{
 			case awaiting:
-				if (Uart0::read(buffer))
-					cmd_state = search_for_command();
-				return;
+				if (!Uart0::read(buffer)) return false;
+				cmd_state = search_for_command();
+				break;
 
 			case get_id:
-				if (Uart0::read(buffer))
-					cmd_state = waiting_for_id();
-				return;
+				if (!Uart0::read(buffer)) return false;
+				cmd_state = waiting_for_id();
+				break;
 
 			case reading:
-				if (Uart0::read(buffer))
-					cmd_state = waiting_for_data();
-				return;
+				if (!Uart0::read(buffer)) return false;
+				cmd_state = waiting_for_data();
+				break;
 
 			case eating:
-				if (Uart0::read(buffer))
-					cmd_state = finished; //eating_others_data();
-				return;
+				if (!Uart0::read(buffer)) return false;
+				cmd_state = finished; //eating_others_data();
+				break;
 
 			case pending:
 				cmd_state = process_command();
-				return;
+				break;
 
 			case finished:
 				send.flush();
 				cmd_id = no_command;
 				cmd_state = awaiting;
 				/* anything else todo? */
-				return;
+				break;
 
 			default: /* unknown command state */
-				return;
+				break;
 
 		} /* switch cmd_state */
-		//TODO: return true if finished, false if pending, reading...
+		return true;
 	}
-
-
-	void step_irq() {
-		receive_command();
-	}
-
 
 	void step() {
-		/* currently nothing to do at 100 Hz */
+		while(receive_command());
 	}
 };
 
