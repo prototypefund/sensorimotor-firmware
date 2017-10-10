@@ -82,17 +82,21 @@ def main():
 			else:
 				print("No response.")
 		else:
-			print("searching for connected boards...")
-			num_boards = 0
-			for b in range(128):
-				sys.stdout.write("\r{0}".format(b))
-				sys.stdout.flush()
-				if ping(ser, b):
-					num_boards += 1
-					print("\rboard {0} responded.".format(b))
+			try:
+				print("searching for connected boards...")
+				num_boards = 0
+				for b in range(128):
+					sys.stdout.write("\r{0}".format(b))
+					sys.stdout.flush()
+					if ping(ser, b):
+						num_boards += 1
+						print("\rboard {0} responded.".format(b))
+			except KeyboardInterrupt:
+				print("Aborted.")
 
-			if num_boards > 0:
-				print("\r{} boards detected.\n".format(num_boards))
+			finally:
+				if num_boards > 0:
+					print("\r{} boards detected.\n".format(num_boards))
 
 
 	print("\n____\nDONE.")
