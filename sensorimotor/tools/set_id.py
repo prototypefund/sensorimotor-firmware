@@ -4,7 +4,6 @@ import serial
 import argparse
 import sys
 
-
 default_port = '/dev/ttyUSB1'
 baudrate = 1000000
 
@@ -22,6 +21,10 @@ def eat(ser):
 #		print("dump: {0}".format(b)),
 		b = ser.read()
 
+def assert_byte(ser, c):
+	resp = ser.read() # read response byte
+	return (resp and ord(resp) == c)
+
 
 def ping(ser, board_id):
 	eat(ser)
@@ -31,6 +34,8 @@ def ping(ser, board_id):
 	ser.write(chr(board_id)) # send id
 
 	# check for response
+	assert_byte(ser, 255)
+	assert_byte(ser, 255)
 	resp = ser.read() # read response byte
 	if resp and ord(resp) == 225: #0xE0
 		bid = ser.read() # read id
@@ -46,9 +51,10 @@ def set_id(ser, board_id, new_id):
 	ser.write(chr(112))      # send set_id command 0x70
 	ser.write(chr(board_id)) # send old id
 	ser.write(chr(new_id))   # send new id
-	# TODO this command should get a checksum
 
 	# check for response
+	assert_byte(ser, 255)
+	assert_byte(ser, 255)
 	resp = ser.read() # read response byte
 	if resp and ord(resp) == 113: #0x71
 		bid = ser.read() # read id
