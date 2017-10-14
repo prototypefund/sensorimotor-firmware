@@ -14,24 +14,12 @@
 
 /* this is called once TCNT0 = OCR0A = 249 *
  * resulting in a 1 ms cycle time, 1kHz    */
-
-volatile unsigned int cycles = 0;
-volatile bool timer_state = false;
-
+volatile bool current_state = false;
 ISR (TIMER0_COMPA_vect)
 {
-	++cycles;
-	if (cycles > 9)
-		cycles = 0;
-	timer_state = !timer_state;
+	current_state = !current_state;
 }
 
-/*
-ISR ( USART_RX_vect )
-{
-	com.step_irq();
-}
-*/
 
 int main()
 {
@@ -41,10 +29,10 @@ int main()
 
 	supreme::sensorimotor_core ux;
 
-	/* Design of the 1kHz/100Hz main loop:
+	/* Design of the 1kHz main loop:
 	 * 16Mhz clock, prescaler 64 -> 16.000.000 / 64 = 250.000 increments per second
 	 * diveded by 1000 -> 250 increments per ms
-	 * hence, timer compare register to 250-1 -> ISR inc ms counter -> modulo 10 -> 100Hz loop
+	 * hence, timer compare register to 250-1 -> ISR inc ms counter -> 1kHz loop
 	 *
 	 * configure timer 0:
 	 */
@@ -53,27 +41,22 @@ int main()
 	OCR0A = 249;                     // set timer compare register to 250-1
 	TIMSK0 = (1<<OCIE0A);            // enable compare interrupt
 
-	unsigned long total_cycles = 0;
+	unsigned long cycles = 0;
 
 	supreme::communication_ctrl com(ux);
 
-	bool old_timer_state = false;
+	bool previous_state = false;
 
 	while(1) /* main loop */
 	{
-		while (cycles > 0) {
-			if (timer_state != old_timer_state) {
-				com.step();
-				old_timer_state = timer_state;
-			}
-		};     // wait until cycles == 0
-		// consider using xpcc::delayNanoseconds(delayTime);
-		led::red::set();   // red led on, begin of cycle
-		ux.step();
-
-		++total_cycles;
-		led::red::reset(); // red led off, end of cycle
-		while (cycles == 0);    // eat up rest of the time
+		if (current_state != previous_state) {
+			led::red::set();   // red led on, begin of cycle
+			ux.step();
+			++cycles;
+			led::red::reset(); // red led off, end of cycle
+			previous_state = current_state;
+		}
+		com.step();
 	}
 	return 0;
 }

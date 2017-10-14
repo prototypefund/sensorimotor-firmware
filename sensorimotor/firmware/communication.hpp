@@ -1,7 +1,24 @@
 #include <xpcc/architecture/platform.hpp>
 #include <avr/eeprom.h>
-/*TODO create command to write new id to eeprom, standard ID is max. ID*/
 
+/*
+TODO: create new scheme for command processing:
+
+	0) get sync bytes
+	1) detect command
+	2) look up expected number of bytes
+	3) read all bytes (including checksum)
+	4) verify checksum
+	5) process command (or discard)
+		+ dicard if
+			- ID does not match
+			- checksum is incorrect
+			- timeout in byte stream
+
+	consider having a class for each command, derived from a (virtual) base class
+
+	TODO: clear recv buffer after timeout
+*/
 namespace supreme {
 
 
@@ -16,14 +33,16 @@ public:
 	}
 	void flush() {
 		if (ptr == 0) return;
+		xpcc::delayMicroseconds(20); //TODO measure, if this could be even shorter
 		rs485::read_disable::set();
 		rs485::drive_enable::set();
+		xpcc::delayMicroseconds(5); //TODO measure, if this could be even shorter
 		for (uint16_t i = 0; i < ptr; ++i)
 			Uart0::write(buffer[i]);
 		//Uart0::write(buffer, ptr);
 		ptr = 0;
 		Uart0::flushWriteBuffer();
-		xpcc::delayMilliseconds(1);
+		xpcc::delayMicroseconds(20); //TODO measure, if this could be even shorter
 		rs485::drive_enable::reset();
 		rs485::read_disable::reset();
 	}
@@ -31,7 +50,7 @@ public:
 
 class communication_ctrl {
 
-	enum command_id_t {
+	enum command_id_t { //TODO: this should be classes
 		no_command,
 		data_requested,
 		toggle_enable,
@@ -48,12 +67,14 @@ class communication_ctrl {
 		get_id,
 		reading,
 		eating,
+		verifying,
 		pending,
 		finished
 	};
 
 	supreme::sensorimotor_core&  ux;
 	uint8_t                      buffer = 0; //TODO rename to recv_buffer
+	uint8_t                      checksum = 0;
 	sendbuffer<16>               send;
 
 	uint8_t                      motor_id = 127; // set to default
@@ -99,6 +120,13 @@ public:
 		eeprom_write_byte((uint8_t*)23, (new_id | 0x80));
 	}
 
+	bool byte_received(void) {
+		bool result = Uart0::read(buffer);
+		if (result)
+			checksum += buffer;
+		return result;
+	}
+
 	command_state_t waiting_for_id()
 	{
 		switch(cmd_id)
@@ -125,9 +153,11 @@ public:
 		{
 			case data_requested:
 				position = ux.get_position();
+				send.add(0xff);
+				send.add(0xff);
 				send.add(0x80); /* 1000.0000 */
 				send.add(motor_id);
-				send.add((position >> 8) & 0xff); //TODO transmit, leaving MSB 0
+				send.add((position >> 8) & 0xff);
 				send.add( position       & 0xff);
 				break;
 
@@ -156,6 +186,8 @@ public:
 				break;
 
 			case ping:
+				send.add(0xff);
+				send.add(0xff);
 				send.add(0xE1); /* 1110.0001 */
 				send.add(motor_id);
 				break;
@@ -163,6 +195,8 @@ public:
 			case set_id:
 				write_id_to_EEPROM(target_id);
 				read_id_from_EEPROM();
+				send.add(0xff);
+				send.add(0xff);
 				send.add(0x71); /* 1011.0001 */
 				send.add(motor_id);
 				break;
@@ -235,35 +269,41 @@ public:
 		return get_id;
 	}
 
-
+	/* return code true means continue processing, false: wait for next byte */
 	bool receive_command()
 	{
 		switch(cmd_state)
 		{
 			case syncing:
-				if (!Uart0::read(buffer)) return false;
+				if (not byte_received()) return false;
 				cmd_state = get_sync_bytes();
 				break;
 
 			case awaiting:
-				if (!Uart0::read(buffer)) return false;
+				if (not byte_received()) return false;
 				cmd_state = search_for_command();
 				break;
 
 			case get_id:
-				if (!Uart0::read(buffer)) return false;
+				if (not byte_received()) return false;
 				cmd_state = waiting_for_id();
 				break;
 
 			case reading:
-				if (!Uart0::read(buffer)) return false;
+				if (not byte_received()) return false;
 				cmd_state = waiting_for_data();
 				break;
 
 			case eating:
-				if (!Uart0::read(buffer)) return false;
+				if (not byte_received()) return false;
+				/* TODO: currently, eating one byte only */
 				cmd_state = finished; //eating_others_data();
 				break;
+
+			/*case verifying:
+				if (not byte_received()) return false
+				cmd_state = verify_checksum();
+				break;*/
 
 			case pending:
 				cmd_state = process_command();
@@ -273,6 +313,7 @@ public:
 				send.flush();
 				cmd_id = no_command;
 				cmd_state = syncing;
+				checksum = 0;
 				/* anything else todo? */
 				break;
 
@@ -280,7 +321,7 @@ public:
 				break;
 
 		} /* switch cmd_state */
-		return true;
+		return true; // continue
 	}
 
 	void step() {

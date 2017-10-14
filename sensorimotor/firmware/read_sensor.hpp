@@ -3,19 +3,16 @@
 
 namespace supreme {
 
-class read_sensor { //TODO: find better name
+class read_sensor {
     typedef xpcc::avr::SystemClock clock;
+    uint16_t value = 0;
 
-    uint16_t value;
 public:
-    read_sensor()
-    : value()
-    {
+    read_sensor() {
         /* initialize ADC */
-        A1::setInput();
         Adc::initialize<clock, 115000>();
         Adc::setReference(Adc::Reference::InternalVcc);
-        value = Adc::readChannel(1); //TODO channel no. configurable
+        value = Adc::readChannel(1);
         Adc::setChannel(1);
         Adc::startConversion();
     }
