@@ -1,6 +1,6 @@
 #include <xpcc/architecture/platform.hpp>
 #include <avr/eeprom.h>
-
+#include <assert.hpp>
 /*
 TODO: create new scheme for command processing:
 
@@ -26,25 +26,49 @@ template <unsigned N>
 class sendbuffer {
 	uint16_t  ptr = 0;
 	uint8_t   buffer[N];
+	uint8_t   checksum = 0;
 public:
+
 	void add(uint8_t byte) {
-		if (ptr < N)
-			buffer[ptr++] = byte;
+		assert(ptr < (N-1), 1);
+		buffer[ptr++] = byte;
+		checksum += byte;
 	}
+
 	void flush() {
 		if (ptr == 0) return;
-		xpcc::delayMicroseconds(20); //TODO measure, if this could be even shorter
+		add_checksum();
+		send_mode();
+		for (uint16_t i = 0; i < ptr; ++i)
+			Uart0::write(buffer[i]); // TODO: consider Uart0::write(buffer, ptr);
+		Uart0::flushWriteBuffer();
+		receive_mode();
+
+		/* prepare next */
+		ptr = 0;
+	}
+
+private:
+	void add_checksum() {
+		assert(ptr < N, 8);
+		buffer[ptr++] = ~checksum + 1; /* two's complement checksum */
+		checksum = 0;
+	}
+
+	void send_mode() {
+		xpcc::delayNanoseconds(50); // wait for signal propagation
 		rs485::read_disable::set();
 		rs485::drive_enable::set();
-		xpcc::delayMicroseconds(5); //TODO measure, if this could be even shorter
-		for (uint16_t i = 0; i < ptr; ++i)
-			Uart0::write(buffer[i]);
-		//Uart0::write(buffer, ptr);
-		ptr = 0;
-		Uart0::flushWriteBuffer();
-		xpcc::delayMicroseconds(20); //TODO measure, if this could be even shorter
-		rs485::drive_enable::reset();
+		//xpcc::delayNanoseconds(70);
+		xpcc::delayMicroseconds(1);
+	}
+
+	void receive_mode() {
+		//xpcc::delayNanoseconds(50); // wait for signal propagation
+		xpcc::delayMicroseconds(1);
 		rs485::read_disable::reset();
+		rs485::drive_enable::reset();
+		xpcc::delayNanoseconds(70);
 	}
 };
 
@@ -53,12 +77,15 @@ class communication_ctrl {
 	enum command_id_t { //TODO: this should be classes
 		no_command,
 		data_requested,
+		data_requested_response,
 		toggle_enable,
 		set_voltage,
 		toggle_led,
 		release_mode,
 		ping,
+		ping_response,
 		set_id,
+		set_id_response,
 	};
 
 	enum command_state_t {
@@ -69,7 +96,8 @@ class communication_ctrl {
 		eating,
 		verifying,
 		pending,
-		finished
+		finished,
+		error
 	};
 
 	supreme::sensorimotor_core&  ux;
@@ -93,6 +121,7 @@ class communication_ctrl {
 	bool                         led_state = false;
 	bool                         sync_state = false;
 
+	uint8_t                      num_bytes_eaten = 0;
 public:
 
 	communication_ctrl(supreme::sensorimotor_core& ux)
@@ -129,6 +158,7 @@ public:
 
 	command_state_t waiting_for_id()
 	{
+		if (buffer > 127) return error;
 		switch(cmd_id)
 		{
 			case data_requested:
@@ -142,7 +172,13 @@ public:
 			case set_id:
 				return (motor_id == buffer) ? reading : eating;
 
+			/* responses */
+			case ping_response:           return eating;
+			case set_id_response:         return eating;
+			case data_requested_response: return eating;
+
 			default: /* unknown command */
+				assert(false, 3);
 				return finished;
 		}
 	}
@@ -157,6 +193,8 @@ public:
 				send.add(0xff);
 				send.add(0x80); /* 1000.0000 */
 				send.add(motor_id);
+				//send.add(0x55);
+				//send.add(0x55);
 				send.add((position >> 8) & 0xff);
 				send.add( position       & 0xff);
 				break;
@@ -186,8 +224,8 @@ public:
 				break;
 
 			case ping:
-				send.add(0xff);
-				send.add(0xff);
+				send.add(0xFF);
+				send.add(0xFF);
 				send.add(0xE1); /* 1110.0001 */
 				send.add(motor_id);
 				break;
@@ -195,13 +233,14 @@ public:
 			case set_id:
 				write_id_to_EEPROM(target_id);
 				read_id_from_EEPROM();
-				send.add(0xff);
-				send.add(0xff);
+				send.add(0xFF);
+				send.add(0xFF);
 				send.add(0x71); /* 1011.0001 */
 				send.add(motor_id);
 				break;
 
 			default: /* unknown command */
+				assert(false, 2);
 				break;
 
 		} /* switch cmd_id */
@@ -224,8 +263,30 @@ public:
 				return pending;
 
 			default: /* unknown command */
+				assert(false, 4);
 				return finished;
 		}
+	}
+
+	command_state_t eating_others_data()
+	{
+		++num_bytes_eaten;
+		switch(cmd_id)
+		{
+			case set_voltage:
+			case set_id:
+			case ping_response:
+			case set_id_response:
+				return finished;
+
+			case data_requested_response:
+				return (num_bytes_eaten == 3) ? finished : eating;
+
+			default: /* unknown command */
+				assert(false, 5);
+				return finished;
+		}
+		return finished;
 	}
 
 	command_state_t get_sync_bytes()
@@ -259,10 +320,15 @@ public:
 			case 0xB1: /* 1011.0001 */ cmd_id = set_voltage;
 			                           direction = buffer & 0x1; break;
 			case 0xE0: /* 1110.0000 */ cmd_id = ping;            break;
-			case 0x70: /* 1000.0000 */ cmd_id = set_id;          break;
+			case 0x70: /* 0111.0000 */ cmd_id = set_id;          break;
+
+			/* read but ignore sensorimotor responses */
+			case 0xE1: /* 1110.0001 */ cmd_id = ping_response;   break;
+			case 0x71: /* 0111.0001 */ cmd_id = set_id_response; break;
+			case 0x80: /* 1000.0000 */ cmd_id = data_requested_response; break;
 
 			default: /* unknown command */
-				return finished;
+				return error;
 
 		} /* switch buffer */
 
@@ -296,8 +362,7 @@ public:
 
 			case eating:
 				if (not byte_received()) return false;
-				/* TODO: currently, eating one byte only */
-				cmd_state = finished; //eating_others_data();
+				cmd_state = eating_others_data();
 				break;
 
 			/*case verifying:
@@ -313,8 +378,14 @@ public:
 				send.flush();
 				cmd_id = no_command;
 				cmd_state = syncing;
-				checksum = 0;
+				num_bytes_eaten = 0;
 				/* anything else todo? */
+				break;
+
+			case error:
+				led::yellow::set();
+				cmd_id = no_command;
+				cmd_state = syncing;
 				break;
 
 			default: /* unknown command state */
