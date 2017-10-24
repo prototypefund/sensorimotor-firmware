@@ -22,12 +22,20 @@ TODO: create new scheme for command processing:
 namespace supreme {
 
 
-template <unsigned N>
+template <unsigned N, unsigned NumSyncBytes = 2>
 class sendbuffer {
-	uint16_t  ptr = 0;
+	static const uint8_t chk_init = 0xFE; /* (0xff + 0xff) % 256*/
+	uint16_t  ptr = NumSyncBytes;
 	uint8_t   buffer[N];
-	uint8_t   checksum = 0;
+	uint8_t   checksum = chk_init;
 public:
+
+	sendbuffer()
+	{
+		static_assert(N > NumSyncBytes, "Invalid buffer size.");
+		for (uint8_t i = 0; i < NumSyncBytes; ++i)
+			buffer[i] = 0xFF; // init sync bytes once
+	}
 
 	void add(uint8_t byte) {
 		assert(ptr < (N-1), 1);
@@ -36,7 +44,7 @@ public:
 	}
 
 	void flush() {
-		if (ptr == 0) return;
+		if (ptr == NumSyncBytes) return;
 		add_checksum();
 		send_mode();
 		for (uint16_t i = 0; i < ptr; ++i)
@@ -45,30 +53,28 @@ public:
 		receive_mode();
 
 		/* prepare next */
-		ptr = 0;
+		ptr = NumSyncBytes;
 	}
 
 private:
 	void add_checksum() {
 		assert(ptr < N, 8);
 		buffer[ptr++] = ~checksum + 1; /* two's complement checksum */
-		checksum = 0;
+		checksum = chk_init;
 	}
 
 	void send_mode() {
 		xpcc::delayNanoseconds(50); // wait for signal propagation
 		rs485::read_disable::set();
 		rs485::drive_enable::set();
-		//xpcc::delayNanoseconds(70);
-		xpcc::delayMicroseconds(1);
+		xpcc::delayMicroseconds(1); // wait at least one bit after enabling the driver
 	}
 
 	void receive_mode() {
-		//xpcc::delayNanoseconds(50); // wait for signal propagation
-		xpcc::delayMicroseconds(1);
+		xpcc::delayMicroseconds(1); // wait at least one bit before disabling the driver
 		rs485::read_disable::reset();
 		rs485::drive_enable::reset();
-		xpcc::delayNanoseconds(70);
+		xpcc::delayNanoseconds(70); // wait for signal propagation
 	}
 };
 
@@ -189,12 +195,8 @@ public:
 		{
 			case data_requested:
 				position = ux.get_position();
-				send.add(0xff);
-				send.add(0xff);
 				send.add(0x80); /* 1000.0000 */
 				send.add(motor_id);
-				//send.add(0x55);
-				//send.add(0x55);
 				send.add((position >> 8) & 0xff);
 				send.add( position       & 0xff);
 				break;
@@ -224,8 +226,6 @@ public:
 				break;
 
 			case ping:
-				send.add(0xFF);
-				send.add(0xFF);
 				send.add(0xE1); /* 1110.0001 */
 				send.add(motor_id);
 				break;
@@ -233,9 +233,7 @@ public:
 			case set_id:
 				write_id_to_EEPROM(target_id);
 				read_id_from_EEPROM();
-				send.add(0xFF);
-				send.add(0xFF);
-				send.add(0x71); /* 1011.0001 */
+				send.add(0x71); /* 0111.0001 */
 				send.add(motor_id);
 				break;
 
