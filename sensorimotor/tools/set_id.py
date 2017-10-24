@@ -4,8 +4,11 @@ import serial
 import argparse
 import sys
 
-default_port = '/dev/ttyUSB1'
+
+default_port = '/dev/ttyUSB0'
 baudrate = 1000000
+timeout_s = 0.1
+sync = [255,255]
 
 
 def check_board_id(bid):
@@ -16,51 +19,39 @@ def check_board_id(bid):
 
 
 def eat(ser):
-	b = ser.read()
-	while b:
-#		print("dump: {0}".format(b)),
-		b = ser.read()
+	while ser.read(): pass
+
 
 def assert_byte(ser, c):
 	resp = ser.read() # read response byte
 	return (resp and ord(resp) == c)
 
 
+def receive_byte_sequence(ser, seq):
+	checksum = 0
+	for s in sync+seq:
+		checksum += s
+		if not assert_byte(ser, s):
+			return False
+	c = ser.read()
+	return c and (checksum + ord(c)) % 256 == 0 # two's complement checksum, adds to zero
+
+
+def send_byte_sequence(ser, seq):
+	for s in sync+seq:
+		ser.write(chr(s))
+
+
 def ping(ser, board_id):
 	eat(ser)
-	ser.write(chr(255))      # sync 1
-	ser.write(chr(255))      # sync 2
-	ser.write(chr(224))      # send ping 0xE0
-	ser.write(chr(board_id)) # send id
-
-	# check for response
-	assert_byte(ser, 255)
-	assert_byte(ser, 255)
-	resp = ser.read() # read response byte
-	if resp and ord(resp) == 225: #0xE0
-		bid = ser.read() # read id
-		if bid and ord(bid) == board_id:
-			return True
-	return False
+	send_byte_sequence(ser, [224, board_id]) # send ping command 0xE0
+	return receive_byte_sequence(ser, [225, board_id]) # check for response 0xE1
 
 
 def set_id(ser, board_id, new_id):
 	eat(ser)
-	ser.write(chr(255))      # sync 1
-	ser.write(chr(255))      # sync 2
-	ser.write(chr(112))      # send set_id command 0x70
-	ser.write(chr(board_id)) # send old id
-	ser.write(chr(new_id))   # send new id
-
-	# check for response
-	assert_byte(ser, 255)
-	assert_byte(ser, 255)
-	resp = ser.read() # read response byte
-	if resp and ord(resp) == 113: #0x71
-		bid = ser.read() # read id
-		if bid and ord(bid) == new_id:
-			return True
-	return False
+	send_byte_sequence(ser, [112, board_id, new_id]) # send set_id command 0x70
+	return receive_byte_sequence(ser, [113, new_id]) # check for response 0x71
 
 
 def main():
@@ -71,7 +62,7 @@ def main():
 	args = parser.parse_args()
 
 	# open serial communication
-	with serial.Serial(args.port, baudrate, timeout=0.1) as ser:
+	with serial.Serial(args.port, baudrate, timeout=timeout_s) as ser:
 		print("Connected to port {0}\nwith baudrate {1}.\n".format(ser.port, ser.baudrate))
 
 		if args.board and check_board_id(args.board):
