@@ -38,7 +38,11 @@ def receive_byte_sequence(ser, seq):
 
 
 def send_byte_sequence(ser, seq):
-	for s in sync+seq:
+	sendbuf = sync+seq
+	checksum = (~sum(sendbuf) + 1) % 256
+	sendbuf.append(checksum)
+	assert(sum(sendbuf) % 256 == 0)
+	for s in sendbuf:
 		ser.write(chr(s))
 
 
@@ -104,4 +108,3 @@ def main():
 
 
 if __name__ == "__main__": main()
-
