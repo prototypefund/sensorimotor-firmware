@@ -47,8 +47,7 @@ public:
 		if (ptr == NumSyncBytes) return;
 		add_checksum();
 		send_mode();
-		for (uint16_t i = 0; i < ptr; ++i)
-			Uart0::write(buffer[i]); // TODO: consider Uart0::write(buffer, ptr);
+		Uart0::write(buffer, ptr);
 		Uart0::flushWriteBuffer();
 		receive_mode();
 
@@ -108,7 +107,7 @@ class communication_ctrl {
 
 	supreme::sensorimotor_core&  ux;
 	uint8_t                      buffer = 0; //TODO rename to recv_buffer
-	uint8_t                      checksum = 0;
+	uint8_t                      recv_checksum = 0;
 	sendbuffer<16>               send;
 
 	uint8_t                      motor_id = 127; // set to default
@@ -158,7 +157,7 @@ public:
 	bool byte_received(void) {
 		bool result = Uart0::read(buffer);
 		if (result)
-			checksum += buffer;
+			recv_checksum += buffer;
 		return result;
 	}
 
@@ -172,7 +171,7 @@ public:
 			case release_mode:
 			case toggle_led:
 			case ping:
-				return (motor_id == buffer) ? pending : finished;
+				return (motor_id == buffer) ? verifying : eating;
 
 			case set_voltage:
 			case set_id:
@@ -183,10 +182,10 @@ public:
 			case set_id_response:         return eating;
 			case data_requested_response: return eating;
 
-			default: /* unknown command */
-				assert(false, 3);
-				return finished;
+			default: /* unknown command */ break;
 		}
+		assert(false, 3);
+		return finished;
 	}
 
 	command_state_t process_command()
@@ -254,16 +253,16 @@ public:
 		{
 			case set_voltage:
 				target_pwm = buffer;
-				return pending;
+				return verifying;
 
 			case set_id:
 				target_id = buffer;
-				return pending;
+				return verifying;
 
-			default: /* unknown command */
-				assert(false, 4);
-				return finished;
+			default: /* unknown command */ break;
 		}
+		assert(false, 4);
+		return finished;
 	}
 
 	command_state_t eating_others_data()
@@ -271,20 +270,31 @@ public:
 		++num_bytes_eaten;
 		switch(cmd_id)
 		{
+			case data_requested:
+			case toggle_enable:
+			case release_mode:
+			case toggle_led:
+			case ping:
+				return finished;
+
 			case set_voltage:
 			case set_id:
 			case ping_response:
 			case set_id_response:
-				return finished;
+				return (num_bytes_eaten == 1) ? finished : eating;
 
 			case data_requested_response:
-				return (num_bytes_eaten == 3) ? finished : eating;
+				return (num_bytes_eaten == 2+1) ? finished : eating;
 
-			default: /* unknown command */
-				assert(false, 5);
-				return finished;
+			default: /* unknown command */ break;
 		}
+		assert(false, 5);
 		return finished;
+	}
+
+	command_state_t verify_checksum()
+	{
+		return (recv_checksum == 0) ? pending : finished;
 	}
 
 	command_state_t get_sync_bytes()
@@ -363,10 +373,10 @@ public:
 				cmd_state = eating_others_data();
 				break;
 
-			/*case verifying:
-				if (not byte_received()) return false
+			case verifying:
+				if (not byte_received()) return false;
 				cmd_state = verify_checksum();
-				break;*/
+				break;
 
 			case pending:
 				cmd_state = process_command();
@@ -377,16 +387,20 @@ public:
 				cmd_id = no_command;
 				cmd_state = syncing;
 				num_bytes_eaten = 0;
+				recv_checksum = 0;
 				/* anything else todo? */
 				break;
 
-			case error:
+			case error: //TODO goto finished?
 				led::yellow::set();
 				cmd_id = no_command;
 				cmd_state = syncing;
+				num_bytes_eaten = 0;
+				recv_checksum = 0;
 				break;
 
 			default: /* unknown command state */
+				assert(false, 17);
 				break;
 
 		} /* switch cmd_state */
