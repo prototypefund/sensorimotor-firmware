@@ -4,9 +4,23 @@
 #include <read_sensor.hpp>
 #include <motor_ifx9201sg.hpp>
 
-//using namespace xpcc::atmega;
-
 namespace supreme {
+
+struct Sensors {
+	read_sensor<1> position;
+	read_sensor<7> current;
+	read_sensor<3> voltage_back_emf;
+	read_sensor<6> voltage_supply;
+	read_sensor<2> temperature;
+
+	void step(void) {
+		position        .step();
+		current         .step();
+		voltage_back_emf.step();
+		voltage_supply  .step();
+		temperature     .step();
+	}
+};
 
 class sensorimotor_core {
 
@@ -15,7 +29,7 @@ class sensorimotor_core {
 
 	uint8_t voltage_pwm;
 
-	read_sensor      sensor;
+	Sensors          sensors;
 	motor_ifx9201sg  motor;
 
 	bool release_mode;
@@ -27,10 +41,10 @@ public:
 	: dir_left(true)
 	, enabled(false)
 	, voltage_pwm(0)
-	, sensor()
+	, sensors()
 	, motor()
 	, release_mode()
-	, last_position(sensor.get_value())
+	, last_position(sensors.position.get_value())
 	{
 		motor.disable();
 		motor.set_pwm(voltage_pwm);
@@ -38,8 +52,8 @@ public:
 
 	void step() {
 
-		sensor.step();
-		const uint16_t value = sensor.get_value();
+		sensors.step();
+		const uint16_t value = sensors.position.get_value();
 
 		/* simple test controller, toggles between max bounds */
 		if (dir_left && value < lower_bound) {
@@ -85,7 +99,11 @@ public:
 
 	void toggle_full_release() { release_mode = not release_mode; }
 
-	uint16_t get_position() { return sensor.get_value(); }
+	uint16_t get_position        () { return sensors.position        .get_value(); }
+	uint16_t get_current         () { return sensors.current         .get_value(); }
+	uint16_t get_voltage_back_emf() { return sensors.voltage_back_emf.get_value(); }
+	uint16_t get_voltage_supply  () { return sensors.voltage_supply  .get_value(); }
+	uint16_t get_temperature     () { return sensors.temperature     .get_value(); }
 };
 
 } /* namespace supreme */

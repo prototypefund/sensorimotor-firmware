@@ -21,7 +21,7 @@ TODO: create new scheme for command processing:
 */
 namespace supreme {
 
-
+//TODO move to separate file
 template <unsigned N, unsigned NumSyncBytes = 2>
 class sendbuffer {
 	static const uint8_t chk_init = 0xFE; /* (0xff + 0xff) % 256*/
@@ -37,10 +37,15 @@ public:
 			buffer[i] = 0xFF; // init sync bytes once
 	}
 
-	void add(uint8_t byte) {
+	void add_byte(uint8_t byte) {
 		assert(ptr < (N-1), 1);
 		buffer[ptr++] = byte;
 		checksum += byte;
+	}
+
+	void add_word(uint16_t word) {
+		add_byte((word  >> 8) & 0xff);
+		add_byte( word        & 0xff);
 	}
 
 	void flush() {
@@ -116,7 +121,6 @@ class communication_ctrl {
 	/* motor related */
 	bool                         direction  = false;
 	uint8_t                      target_pwm = 0;
-	uint16_t                     position   = 0;
 
 	/* TODO struct? */
 	command_id_t                 cmd_id    = no_command;
@@ -193,11 +197,13 @@ public:
 		switch(cmd_id)
 		{
 			case data_requested:
-				position = ux.get_position();
-				send.add(0x80); /* 1000.0000 */
-				send.add(motor_id);
-				send.add((position >> 8) & 0xff);
-				send.add( position       & 0xff);
+				send.add_byte(0x80); /* 1000.0000 */
+				send.add_byte(motor_id);
+				send.add_word(ux.get_position());
+				send.add_word(ux.get_current());
+				send.add_word(ux.get_voltage_back_emf());
+				send.add_word(ux.get_voltage_supply());
+				send.add_word(ux.get_temperature());
 				break;
 
 			case toggle_enable:
@@ -225,15 +231,15 @@ public:
 				break;
 
 			case ping:
-				send.add(0xE1); /* 1110.0001 */
-				send.add(motor_id);
+				send.add_byte(0xE1); /* 1110.0001 */
+				send.add_byte(motor_id);
 				break;
 
 			case set_id:
 				write_id_to_EEPROM(target_id);
 				read_id_from_EEPROM();
-				send.add(0x71); /* 0111.0001 */
-				send.add(motor_id);
+				send.add_byte(0x71); /* 0111.0001 */
+				send.add_byte(motor_id);
 				break;
 
 			default: /* unknown command */
@@ -284,7 +290,7 @@ public:
 				return (num_bytes_eaten == 1) ? finished : eating;
 
 			case data_requested_response:
-				return (num_bytes_eaten == 2+1) ? finished : eating;
+				return (num_bytes_eaten == 11) ? finished : eating;
 
 			default: /* unknown command */ break;
 		}
