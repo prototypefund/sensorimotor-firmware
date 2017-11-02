@@ -27,7 +27,8 @@ int main()
 	led::yellow::setOutput();
 	led::red::setOutput();
 
-	supreme::sensorimotor_core ux;
+	typedef supreme::sensorimotor_core core_t;
+	core_t ux;
 
 	/* Design of the 1kHz main loop:
 	 * 16Mhz clock, prescaler 64 -> 16.000.000 / 64 = 250.000 increments per second
@@ -43,7 +44,7 @@ int main()
 
 	unsigned long cycles = 0;
 
-	supreme::communication_ctrl com(ux);
+	supreme::communication_ctrl<core_t> com(ux);
 
 	bool previous_state = false;
 

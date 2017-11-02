@@ -1,3 +1,6 @@
+#ifndef SUPREME_SENSORIMOTOR_CORE_HPP
+#define SUPREME_SENSORIMOTOR_CORE_HPP
+
 #include <xpcc/architecture/platform.hpp>
 
 #include <constants.hpp>
@@ -107,3 +110,5 @@ public:
 };
 
 } /* namespace supreme */
+
+#endif /* SUPREME_SENSORIMOTOR_CORE_HPP */

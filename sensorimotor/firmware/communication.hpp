@@ -1,6 +1,7 @@
 #include <xpcc/architecture/platform.hpp>
 #include <avr/eeprom.h>
 #include <assert.hpp>
+
 /*
 TODO: create new scheme for command processing:
 
@@ -60,6 +61,8 @@ public:
 		ptr = NumSyncBytes;
 	}
 
+	uint16_t size(void) const { return ptr; }
+
 private:
 	void add_checksum() {
 		assert(ptr < N, 8);
@@ -82,8 +85,9 @@ private:
 	}
 };
 
+template <typename CoreType>
 class communication_ctrl {
-
+public:
 	enum command_id_t { //TODO: this should be classes
 		no_command,
 		data_requested,
@@ -99,18 +103,19 @@ class communication_ctrl {
 	};
 
 	enum command_state_t {
-		syncing,
-		awaiting,
-		get_id,
-		reading,
-		eating,
-		verifying,
-		pending,
-		finished,
-		error
+		syncing   = 0,
+		awaiting  = 1,
+		get_id    = 2,
+		reading   = 3,
+		eating    = 4,
+		verifying = 5,
+		pending   = 6,
+		finished  = 7,
+		error     = 8,
 	};
 
-	supreme::sensorimotor_core&  ux;
+private:
+	CoreType&                    ux;
 	uint8_t                      buffer = 0; //TODO rename to recv_buffer
 	uint8_t                      recv_checksum = 0;
 	sendbuffer<16>               send;
@@ -131,9 +136,11 @@ class communication_ctrl {
 	bool                         sync_state = false;
 
 	uint8_t                      num_bytes_eaten = 0;
+	uint16_t                     errors = 0;
+
 public:
 
-	communication_ctrl(supreme::sensorimotor_core& ux)
+	communication_ctrl(CoreType& ux)
 	: ux(ux)
 	, send()
 	{
@@ -149,7 +156,7 @@ public:
 	void read_id_from_EEPROM() {
 		eeprom_busy_wait();
 		uint8_t read_id = eeprom_read_byte((uint8_t*)23);
-		if (read_id)
+		if (read_id) /* MSB is set, check if this id was written before */
 			motor_id = read_id & 0x7F;
 	}
 
@@ -164,6 +171,10 @@ public:
 			recv_checksum += buffer;
 		return result;
 	}
+
+	command_state_t get_state() const { return cmd_state; }
+	uint8_t         get_motor_id() const { return motor_id; }
+	uint16_t        get_errors() const { return errors; }
 
 	command_state_t waiting_for_id()
 	{
@@ -281,16 +292,17 @@ public:
 			case release_mode:
 			case toggle_led:
 			case ping:
+			case ping_response:
+			case set_id_response:
+				assert(num_bytes_eaten == 1, 77);
 				return finished;
 
 			case set_voltage:
 			case set_id:
-			case ping_response:
-			case set_id_response:
-				return (num_bytes_eaten == 1) ? finished : eating;
+				return (num_bytes_eaten <  2) ? eating : finished;
 
 			case data_requested_response:
-				return (num_bytes_eaten == 11) ? finished : eating;
+				return (num_bytes_eaten < 11) ? eating : finished;
 
 			default: /* unknown command */ break;
 		}
@@ -300,7 +312,7 @@ public:
 
 	command_state_t verify_checksum()
 	{
-		return (recv_checksum == 0) ? pending : finished;
+		return (recv_checksum == 0) ? pending : error;
 	}
 
 	command_state_t get_sync_bytes()
@@ -394,15 +406,19 @@ public:
 				cmd_state = syncing;
 				num_bytes_eaten = 0;
 				recv_checksum = 0;
+				assert(sync_state == false, 55);
 				/* anything else todo? */
 				break;
 
 			case error: //TODO goto finished?
+				if (errors < 0xffff)
+					++errors;
 				led::yellow::set();
 				cmd_id = no_command;
 				cmd_state = syncing;
 				num_bytes_eaten = 0;
 				recv_checksum = 0;
+				assert(sync_state == false, 54);
 				break;
 
 			default: /* unknown command state */
