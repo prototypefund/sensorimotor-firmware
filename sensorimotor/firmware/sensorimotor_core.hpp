@@ -4,71 +4,80 @@
 #include <xpcc/architecture/platform.hpp>
 
 #include <constants.hpp>
-#include <read_sensor.hpp>
 #include <motor_ifx9201sg.hpp>
+#include <adc.hpp>
 
 namespace supreme {
 
 struct Sensors {
-	read_sensor<1> position;
-	read_sensor<7> current;
-	read_sensor<3> voltage_back_emf;
-	read_sensor<6> voltage_supply;
-	read_sensor<2> temperature;
+
+	uint16_t position;
+	uint16_t current;
+	uint16_t voltage_back_emf;
+	uint16_t voltage_supply;
+	uint16_t temperature;
 
 	void step(void) {
-		position        .step();
-		current         .step();
-		voltage_back_emf.step();
-		voltage_supply  .step();
-		temperature     .step();
+		position         = adc::result[adc::position        ];
+		current          = adc::result[adc::current         ];
+		voltage_back_emf = adc::result[adc::voltage_back_emf];
+		voltage_supply   = adc::result[adc::voltage_supply  ];
+		temperature      = adc::result[adc::temperature     ];
 	}
 };
 
 class sensorimotor_core {
 
-	bool dir_left;
 	bool enabled;
 
-	uint8_t voltage_pwm;
+	struct {
+		uint8_t pwm;
+		bool    dir;
+	} target;
 
 	Sensors          sensors;
 	motor_ifx9201sg  motor;
 
-	bool release_mode;
-	uint16_t last_position;
-
 public:
 
 	sensorimotor_core()
-	: dir_left(true)
-	, enabled(false)
-	, voltage_pwm(0)
+	: enabled(false)
+	, target()
 	, sensors()
 	, motor()
-	, release_mode()
-	, last_position(sensors.position.get_value())
 	{
 		motor.disable();
-		motor.set_pwm(voltage_pwm);
+		motor.set_pwm(0);
 	}
 
-	void step() {
+	void apply_target_values(void) {
+		if (enabled) {
+			motor.set_pwm(target.pwm);
+			motor.set_dir(target.dir);
+			motor.enable();
+		} else {
+			motor.set_pwm(0);
+			motor.disable();
+			target.pwm = 0;
+		}
+	}
 
+	void step(void) {
+		apply_target_values();
 		sensors.step();
-		const uint16_t value = sensors.position.get_value();
+		//const uint16_t value = sensors.position.get_value();
 
 		/* simple test controller, toggles between max bounds */
-		if (dir_left && value < lower_bound) {
+		/*if (dir_left && value < lower_bound) {
 			dir_left = false;
 			motor.toggle_direction();
 		} else if (!dir_left && value > upper_bound){
 			dir_left = true;
 			motor.toggle_direction();
-		}
+		}*/
 
 		/** release_mode */
-		if (release_mode) {
+		/*if (release_mode) {
 			if (last_position < value) {
 				set_dir(false);
 				set_pwm(20);
@@ -79,34 +88,21 @@ public:
 				set_pwm(0);
 		}
 		last_position = value;
+		*/
 	}
 
-	//void inc_pwm() { if (voltage_pwm < 128) motor.set_pwm(++voltage_pwm); }
-	//void dec_pwm() { if (voltage_pwm > 0  ) motor.set_pwm(--voltage_pwm); }
-
-	void set_pwm(uint8_t pwm) { if (pwm <= 128  ) motor.set_pwm(pwm); }
-
-	void set_dir(bool dir) {
-		dir_left = dir;
-		motor.set_direction(dir);
-	}
-
-	void toggle_enable() {
-		enabled = !enabled;
-		if (enabled) motor.enable();
-		else motor.disable();
-	}
+	void set_target_pwm(uint8_t pwm) { if (pwm <= 128  ) target.pwm = pwm; }
+	void set_target_dir(bool    dir) { target.dir = dir; }
 
 	void enable()  { motor.enable();  }
 	void disable() { motor.disable(); }
+	bool is_enabled() const { return enabled; }
 
-	void toggle_full_release() { release_mode = not release_mode; }
-
-	uint16_t get_position        () { return sensors.position        .get_value(); }
-	uint16_t get_current         () { return sensors.current         .get_value(); }
-	uint16_t get_voltage_back_emf() { return sensors.voltage_back_emf.get_value(); }
-	uint16_t get_voltage_supply  () { return sensors.voltage_supply  .get_value(); }
-	uint16_t get_temperature     () { return sensors.temperature     .get_value(); }
+	uint16_t get_position        () { return sensors.position; }
+	uint16_t get_current         () { return sensors.current; }
+	uint16_t get_voltage_back_emf() { return sensors.voltage_back_emf; }
+	uint16_t get_voltage_supply  () { return sensors.voltage_supply; }
+	uint16_t get_temperature     () { return sensors.temperature; }
 };
 
 } /* namespace supreme */

@@ -10,7 +10,7 @@
 #include <xpcc/architecture/platform.hpp>
 #include <sensorimotor_core.hpp>
 #include <communication.hpp>
-
+#include <adc.hpp>
 
 /* this is called once TCNT0 = OCR0A = 249 *
  * resulting in a 1 ms cycle time, 1kHz    */
@@ -26,6 +26,8 @@ int main()
 	Board::initialize();
 	led::yellow::setOutput();
 	led::red::setOutput();
+
+	supreme::adc::init();
 
 	typedef supreme::sensorimotor_core core_t;
 	core_t ux;
@@ -53,6 +55,7 @@ int main()
 		if (current_state != previous_state) {
 			led::red::set();   // red led on, begin of cycle
 			ux.step();
+			supreme::adc::restart();
 			++cycles;
 			led::red::reset(); // red led off, end of cycle
 			previous_state = current_state;

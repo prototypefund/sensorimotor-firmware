@@ -1,3 +1,6 @@
+#ifndef SUPREME_MOTOR_IFX9201SG_HPP
+#define SUPREME_MOTOR_IFX9201SG_HPP
+
 /* motor_ifx9201sg.hpp */
 #include <xpcc/architecture/platform.hpp>
 
@@ -35,7 +38,7 @@ public:
     }
 
     void toggle_direction() { motor::DIR::toggle(); }
-    void set_direction(bool dir) {
+    void set_dir(bool dir) {
         if (dir) motor::DIR::set();
         else motor::DIR::reset();
     }
@@ -47,3 +50,5 @@ public:
 };
 
 } /* namespace supreme */
+
+#endif /* SUPREME_MOTOR_IFX9201SG_HPP */

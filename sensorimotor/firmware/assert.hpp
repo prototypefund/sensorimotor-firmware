@@ -1,3 +1,6 @@
+#ifndef SUPREME_COMMON_ASSERT_HPP
+#define SUPREME_COMMON_ASSERT_HPP
+
 #include <xpcc/architecture/platform.hpp>
 
 namespace supreme {
@@ -34,3 +37,5 @@ void assert(bool condition, uint8_t code = 0) {
 }
 
 } // namespace supreme
+
+#endif /* SUPREME_COMMON_ASSERT_HPP */

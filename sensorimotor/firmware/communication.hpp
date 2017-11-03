@@ -1,6 +1,11 @@
+#ifndef SUPREME_COMMUNICATION
+#define SUPREME_COMMUNICATION
+
 #include <xpcc/architecture/platform.hpp>
 #include <avr/eeprom.h>
 #include <assert.hpp>
+
+#include <communication/sendbuffer.hpp>
 
 /*
 TODO: create new scheme for command processing:
@@ -22,69 +27,6 @@ TODO: create new scheme for command processing:
 */
 namespace supreme {
 
-//TODO move to separate file
-template <unsigned N, unsigned NumSyncBytes = 2>
-class sendbuffer {
-	static const uint8_t chk_init = 0xFE; /* (0xff + 0xff) % 256*/
-	uint16_t  ptr = NumSyncBytes;
-	uint8_t   buffer[N];
-	uint8_t   checksum = chk_init;
-public:
-
-	sendbuffer()
-	{
-		static_assert(N > NumSyncBytes, "Invalid buffer size.");
-		for (uint8_t i = 0; i < NumSyncBytes; ++i)
-			buffer[i] = 0xFF; // init sync bytes once
-	}
-
-	void add_byte(uint8_t byte) {
-		assert(ptr < (N-1), 1);
-		buffer[ptr++] = byte;
-		checksum += byte;
-	}
-
-	void add_word(uint16_t word) {
-		add_byte((word  >> 8) & 0xff);
-		add_byte( word        & 0xff);
-	}
-
-	void flush() {
-		if (ptr == NumSyncBytes) return;
-		add_checksum();
-		send_mode();
-		Uart0::write(buffer, ptr);
-		Uart0::flushWriteBuffer();
-		receive_mode();
-
-		/* prepare next */
-		ptr = NumSyncBytes;
-	}
-
-	uint16_t size(void) const { return ptr; }
-
-private:
-	void add_checksum() {
-		assert(ptr < N, 8);
-		buffer[ptr++] = ~checksum + 1; /* two's complement checksum */
-		checksum = chk_init;
-	}
-
-	void send_mode() {
-		xpcc::delayNanoseconds(50); // wait for signal propagation
-		rs485::read_disable::set();
-		rs485::drive_enable::set();
-		xpcc::delayMicroseconds(1); // wait at least one bit after enabling the driver
-	}
-
-	void receive_mode() {
-		xpcc::delayMicroseconds(1); // wait at least one bit before disabling the driver
-		rs485::read_disable::reset();
-		rs485::drive_enable::reset();
-		xpcc::delayNanoseconds(70); // wait for signal propagation
-	}
-};
-
 template <typename CoreType>
 class communication_ctrl {
 public:
@@ -92,10 +34,8 @@ public:
 		no_command,
 		data_requested,
 		data_requested_response,
-		toggle_enable,
 		set_voltage,
 		toggle_led,
-		release_mode,
 		ping,
 		ping_response,
 		set_id,
@@ -116,7 +56,7 @@ public:
 
 private:
 	CoreType&                    ux;
-	uint8_t                      buffer = 0; //TODO rename to recv_buffer
+	uint8_t                      recv_buffer = 0;
 	uint8_t                      recv_checksum = 0;
 	sendbuffer<16>               send;
 
@@ -124,7 +64,7 @@ private:
 	uint8_t                      target_id = 127;
 
 	/* motor related */
-	bool                         direction  = false;
+	bool                         target_dir = false;
 	uint8_t                      target_pwm = 0;
 
 	/* TODO struct? */
@@ -153,6 +93,7 @@ public:
 		rs485::read_disable::reset();
 	}
 
+	// TODO move to eeprom/memory class
 	void read_id_from_EEPROM() {
 		eeprom_busy_wait();
 		uint8_t read_id = eeprom_read_byte((uint8_t*)23);
@@ -166,31 +107,29 @@ public:
 	}
 
 	bool byte_received(void) {
-		bool result = Uart0::read(buffer);
+		bool result = Uart0::read(recv_buffer);
 		if (result)
-			recv_checksum += buffer;
+			recv_checksum += recv_buffer;
 		return result;
 	}
 
-	command_state_t get_state() const { return cmd_state; }
+	command_state_t get_state()    const { return cmd_state; }
 	uint8_t         get_motor_id() const { return motor_id; }
-	uint16_t        get_errors() const { return errors; }
+	uint16_t        get_errors()   const { return errors; }
 
 	command_state_t waiting_for_id()
 	{
-		if (buffer > 127) return error;
+		if (recv_buffer > 127) return error;
 		switch(cmd_id)
 		{
 			case data_requested:
-			case toggle_enable:
-			case release_mode:
 			case toggle_led:
 			case ping:
-				return (motor_id == buffer) ? verifying : eating;
+				return (motor_id == recv_buffer) ? verifying : eating;
 
 			case set_voltage:
 			case set_id:
-				return (motor_id == buffer) ? reading : eating;
+				return (motor_id == recv_buffer) ? reading : eating;
 
 			/* responses */
 			case ping_response:           return eating;
@@ -203,31 +142,34 @@ public:
 		return finished;
 	}
 
+	void prepare_data_response(void)
+	{
+		send.add_byte(0x80); /* 1000.0000 */
+		send.add_byte(motor_id);
+		send.add_word(ux.get_position());
+		send.add_word(ux.get_current());
+		send.add_word(ux.get_voltage_back_emf());
+		send.add_word(ux.get_voltage_supply());
+		send.add_word(ux.get_temperature());
+		//TODO: integrate enable_status
+		//TODO: integrate error/status codes
+	}
+
 	command_state_t process_command()
 	{
 		switch(cmd_id)
 		{
 			case data_requested:
-				send.add_byte(0x80); /* 1000.0000 */
-				send.add_byte(motor_id);
-				send.add_word(ux.get_position());
-				send.add_word(ux.get_current());
-				send.add_word(ux.get_voltage_back_emf());
-				send.add_word(ux.get_voltage_supply());
-				send.add_word(ux.get_temperature());
-				break;
-
-			case toggle_enable:
-				ux.toggle_enable();
+				ux.disable();
+				ux.set_target_pwm(0);
+				prepare_data_response();
 				break;
 
 			case set_voltage:
-				ux.set_pwm(target_pwm);
-				ux.set_dir(direction);
-				break;
-
-			case release_mode:
-				ux.toggle_full_release();
+				ux.set_target_pwm(target_pwm);
+				ux.set_target_dir(target_dir);
+				ux.enable();
+				prepare_data_response();
 				break;
 
 			case toggle_led: //TODO: apply pwm to LED
@@ -269,11 +211,11 @@ public:
 		switch(cmd_id)
 		{
 			case set_voltage:
-				target_pwm = buffer;
+				target_pwm = recv_buffer;
 				return verifying;
 
 			case set_id:
-				target_id = buffer;
+				target_id = recv_buffer;
 				return verifying;
 
 			default: /* unknown command */ break;
@@ -288,8 +230,6 @@ public:
 		switch(cmd_id)
 		{
 			case data_requested:
-			case toggle_enable:
-			case release_mode:
 			case toggle_led:
 			case ping:
 			case ping_response:
@@ -317,7 +257,7 @@ public:
 
 	command_state_t get_sync_bytes()
 	{
-		if (buffer != 0xFF) {
+		if (recv_buffer != 0xFF) {
 			sync_state = false;
 			return finished;
 		}
@@ -333,18 +273,16 @@ public:
 
 	command_state_t search_for_command()
 	{
-		switch(buffer)
+		switch(recv_buffer)
 		{
 			/* single byte commands */
 			case 0xC0: /* 1100.0000 */ cmd_id = data_requested;  break;
-			case 0xA0: /* 1010.0000 */ cmd_id = toggle_enable;   break;
 			case 0xD0: /* 1101.0000 */ cmd_id = toggle_led;      break;
-			case 0xF1: /* 1111.0001 */ cmd_id = release_mode;    break;
 
 			/* multi-byte commands */
 			case 0xB0: /* 1011.0000 */ //fall through
 			case 0xB1: /* 1011.0001 */ cmd_id = set_voltage;
-			                           direction = buffer & 0x1; break;
+			                           target_dir = recv_buffer & 0x1; break;
 			case 0xE0: /* 1110.0000 */ cmd_id = ping;            break;
 			case 0x70: /* 0111.0000 */ cmd_id = set_id;          break;
 
@@ -356,7 +294,7 @@ public:
 			default: /* unknown command */
 				return error;
 
-		} /* switch buffer */
+		} /* switch recv_buffer */
 
 		return get_id;
 	}
@@ -400,7 +338,7 @@ public:
 				cmd_state = process_command();
 				break;
 
-			case finished:
+			case finished: /* cleanup, prepare for next message */
 				send.flush();
 				cmd_id = no_command;
 				cmd_state = syncing;
@@ -410,15 +348,11 @@ public:
 				/* anything else todo? */
 				break;
 
-			case error: //TODO goto finished?
-				if (errors < 0xffff)
-					++errors;
+			case error:
+				if (errors < 0xffff) ++errors;
 				led::yellow::set();
-				cmd_id = no_command;
-				cmd_state = syncing;
-				num_bytes_eaten = 0;
-				recv_checksum = 0;
-				assert(sync_state == false, 54);
+				send.discard();
+				cmd_state = finished;
 				break;
 
 			default: /* unknown command state */
@@ -434,4 +368,6 @@ public:
 	}
 };
 
-} // namespace supreme
+} /* namespace supreme */
+
+#endif /* SUPREME_COMMUNICATION */

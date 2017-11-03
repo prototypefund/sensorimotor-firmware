@@ -1,5 +1,9 @@
+#ifndef SUPREME_READ_SENSOR_HPP
+#define SUPREME_READ_SENSOR_HPP
+
 /* read_sensor.hpp */
 #include <xpcc/architecture/platform.hpp>
+
 
 namespace supreme {
 
@@ -11,23 +15,16 @@ class read_sensor {
 public:
     read_sensor() {
         /* initialize ADC */
-        Adc::initialize<clock, 115000>();
+        Adc::initialize<clock, 125000>();
         Adc::setReference(Adc::Reference::InternalVcc);
         value = Adc::readChannel(ChannelNumber);
-        //Adc::setChannel(ChannelNumber);
-        //Adc::startConversion();
     }
 
-    void step() {
-        /*Adc::setChannel(ChannelNumber);
-        if (Adc::isConversionFinished()) {
-            value = Adc::getValue();
-            Adc::startConversion(); // restart the conversion
-        }*/
-        value = Adc::readChannel(ChannelNumber);
-    }
+    void step() { value = Adc::readChannel(ChannelNumber); }
 
     uint16_t get_value() const { return value; }
 };
 
 } /* namespace supreme */
+
+#endif /* SUPREME_READ_SENSOR_HPP */
