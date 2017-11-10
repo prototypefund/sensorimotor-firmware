@@ -215,8 +215,11 @@ public:
 				return verifying;
 
 			case set_id:
-				target_id = recv_buffer;
-				return verifying;
+				if (recv_buffer < 128) {
+					target_id = recv_buffer;
+					return verifying;
+				}
+				else return error;
 
 			default: /* unknown command */ break;
 		}
