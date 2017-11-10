@@ -318,6 +318,79 @@ TEST_CASE( "set_id command can be received, id is set and command is responded",
 	REQUIRE( verify_checksum(Uart0::recv_buffer) );
 }
 
+TEST_CASE( "invalid set_id command is refused when checksum is wrong", "[communication]")
+{
+	reset_hardware();
+	set_motor_id(1);
+
+	using core_t = test_sensorimotor_core;
+	using com_t = supreme::communication_ctrl<core_t>;
+
+	core_t ux;
+	com_t com(ux);
+
+	REQUIRE( com.get_motor_id() == 1 );
+	uint8_t new_id = 42;
+
+	com.step();
+	REQUIRE( Uart0::recv_buffer.size() == 0 );
+
+	Uart0::send_queue.push(0xff); // 1st sync
+	Uart0::send_queue.push(0xff); // 2nd sync
+	Uart0::send_queue.push(0x70); // set_id cmd
+	Uart0::send_queue.push(   1); // motor id
+	Uart0::send_queue.push(new_id); // motor id
+	Uart0::send_queue.push(0xff); // invalid checksum
+
+	com.step();
+
+	REQUIRE( com.get_errors() == 1 );
+	REQUIRE( Uart0::recv_buffer.size() == 0 );
+
+	REQUIRE( com.get_motor_id() != new_id );
+	REQUIRE( com.get_motor_id() == 1 );
+
+}
+
+TEST_CASE( "invalid set_id command is refused when new id is wrong", "[communication]")
+{
+	using core_t = test_sensorimotor_core;
+	using com_t = supreme::communication_ctrl<core_t>;
+
+	core_t ux;
+
+	std::vector<uint8_t> wrong0 = { 0x70, 1, 128  };
+	std::vector<uint8_t> wrong1 = { 0x70, 1, 255  };
+
+	std::vector<uint8_t> correct0 = { 0x70, 1, 13  };
+	std::vector<uint8_t> correct1 = { 0x70, 1, 127 };
+	std::vector<uint8_t> correct2 = { 0x70, 1, 0   };
+
+	for (auto const& cmd : { correct0, correct1, correct2} ) {
+		reset_hardware();
+		set_motor_id(1);
+		com_t com(ux);
+		REQUIRE( com.get_motor_id() == 1 );
+
+		send(cmd);
+		com.step();
+		REQUIRE( com.get_errors() == 0 );
+		REQUIRE( com.get_motor_id() == cmd[2] );
+	}
+
+	for (auto const& cmd : { wrong0, wrong1} ) {
+		reset_hardware();
+		set_motor_id(1);
+		com_t com(ux);
+		REQUIRE( com.get_motor_id() == 1 );
+
+		send(cmd);
+		com.step();
+		REQUIRE( com.get_errors() == 1 );
+		REQUIRE( com.get_motor_id() != cmd[2] );
+		REQUIRE( com.get_motor_id() == 1 );
+	}
+}
 
 TEST_CASE( "multiple pings", "[communication]")
 {
