@@ -6,6 +6,7 @@
 #include <constants.hpp>
 #include <motor_ifx9201sg.hpp>
 #include <adc.hpp>
+#include <temperature.hpp>
 
 namespace supreme {
 
@@ -23,6 +24,7 @@ struct Sensors {
 		voltage_back_emf = adc::result[adc::voltage_back_emf];
 		voltage_supply   = adc::result[adc::voltage_supply  ];
 		temperature      = adc::result[adc::temperature     ];
+		temperature      = get_temperature_celsius(adc::result[adc::temperature]);
 	}
 };
 
@@ -94,8 +96,8 @@ public:
 	void set_target_pwm(uint8_t pwm) { if (pwm <= 128  ) target.pwm = pwm; }
 	void set_target_dir(bool    dir) { target.dir = dir; }
 
-	void enable()  { motor.enable();  }
-	void disable() { motor.disable(); }
+	void enable()  { enabled = true;  }
+	void disable() { enabled = false; }
 	bool is_enabled() const { return enabled; }
 
 	uint16_t get_position        () { return sensors.position; }
