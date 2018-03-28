@@ -1,0 +1,4 @@
+#!/bin/bash
+
+../stm32flash/stm32flash -w ./build/firmware.hex -v -g 0x0 /dev/ttyUSB0 
+
