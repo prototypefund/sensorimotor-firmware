@@ -151,6 +151,7 @@ public:
 		send.add_word(ux.get_voltage_back_emf());
 		send.add_word(ux.get_voltage_supply());
 		send.add_word(ux.get_temperature());
+		//TODO: external I2C sensor
 		//TODO: integrate enable_status
 		//TODO: integrate error/status codes
 	}
