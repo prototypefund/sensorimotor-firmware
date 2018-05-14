@@ -42,7 +42,7 @@ struct systemClock {
 //	static constexpr uint32_t I2c2   = Apb1;
 //	static constexpr uint32_t I2c3   = Apb1;
 
-/*	static constexpr uint32_t Apb1Timer = Apb1 * 2;
+	static constexpr uint32_t Apb1Timer = Apb1 * 2;
 	static constexpr uint32_t Apb2Timer = Apb2 * 1;
 	static constexpr uint32_t Timer1  = Apb2Timer;
 	static constexpr uint32_t Timer2  = Apb1Timer;
@@ -51,7 +51,7 @@ struct systemClock {
 	static constexpr uint32_t Timer5  = Apb1Timer;
 	static constexpr uint32_t Timer9  = Apb2Timer;
 	static constexpr uint32_t Timer10 = Apb2Timer;
-	static constexpr uint32_t Timer11 = Apb2Timer; */
+	static constexpr uint32_t Timer11 = Apb2Timer;
 
 	static bool inline
 	enable()
@@ -144,17 +144,40 @@ initialize()
 	systemClock::enable();
 	xpcc::cortex::SysTickTimer::initialize<systemClock>();
 
+	/* power-up sensorimotors */
+	mot_pwr_en::setOutput();
+	mot_pwr_en::reset(); // Note: This can currently not be shut down, and is a work-around for the flipped MOSFET, see ISSUE-x
+
+
+	/* init LEDs */
+	led_ylw::setOutput();
+	led_red::setOutput();
+	led_ylw::reset();
+	led_red::reset();
+
+
+	/* setup rs485 interfaces */
 	spinalcord::di::connect(spinalcord::uart::Tx);
 	spinalcord::ro::connect(spinalcord::uart::Rx);
 	spinalcord::uart::initialize<systemClock, 1000000>(12); // 1Mbaud/s
+	spinalcord::drive_enable::setOutput();
+	spinalcord::read_disable::setOutput();
 
 	motorcord::di::connect(motorcord::uart::Tx);
 	motorcord::ro::connect(motorcord::uart::Rx);
 	motorcord::uart::initialize<systemClock, 1000000>(12); // 1Mbaud/s
+	motorcord::drive_enable::setOutput();
+	motorcord::read_disable::setOutput();
 
 	external::di::connect(external::uart::Tx);
 	external::ro::connect(external::uart::Rx);
 	external::uart::initialize<systemClock, 1000000>(12); // 1Mbaud/s
+	external::drive_enable::setOutput();
+	external::read_disable::setOutput();
+
+	/* enable rs485 interfaces */
+	com_pwr_en::setOutput();
+	com_pwr_en::set(); 
 
 
 
