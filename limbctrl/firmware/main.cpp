@@ -14,7 +14,7 @@ enum CycleState {
 	synchronized   = 2,
 	receiving      = 3,
 	transmitting   = 4,
-	doublicate_id  = 5,
+	duplicate_id  = 5,
 };
 
 enum RecvState {
@@ -34,7 +34,7 @@ enum RecvState {
    -> 10 us per byte
 */
 constexpr unsigned byte_transmission_time_us = 10;
-constexpr unsigned deadtime_us = 10;
+constexpr unsigned deadtime_us = 20;
 constexpr unsigned bytes_per_slot = 10;
 constexpr unsigned slottime_us = bytes_per_slot * byte_transmission_time_us + deadtime_us;
 
@@ -68,7 +68,6 @@ uint8_t send_buffer[bytes_per_slot];
 */
 
 /* variables used by timer ISRs */
-volatile CycleState state = initializing;
 volatile bool rx_timed_out = false;
 volatile bool sendnow      = false;
 volatile bool syncnow      = false;
@@ -205,9 +204,11 @@ main()
 	motorcord_receive_mode();
 	spinalcord_receive_mode();
 
-	init_timer<GlobalSync, frametime_us  >();
+	init_timer<GlobalSync, frametime_us*2>();
 	init_timer<LocalDelay, local_delay_us>();
 	init_timer<RxTimeout , slottime_us   >();
+
+	CycleState state = initializing;
 
 	uint8_t min_id = board_id; // assume, until we know better
 	uint8_t last_min_id = 255;
@@ -242,7 +243,7 @@ main()
 				}
 
 				if (slot_id == board_id) // someone is using our id!
-					state = doublicate_id;
+					state = duplicate_id;
 			}
 			// note: state is set to [synchronized] by global sync ISR
 			if (syncnow) {
@@ -253,7 +254,8 @@ main()
 
 		case synchronized:
 			++cycles;
-			if (last_min_id != min_id) { // we got a new min_id, timer must by changed
+			if (min_id < last_min_id) {
+				// we got a new min_id, timer must by changed
 				synctime_us = frametime_us - min_id * slottime_us;
 				GlobalSync::setPeriod<Board::systemClock>(synctime_us, /*autoapply=*/ true);
 				last_min_id = min_id; // remember last min_id before resetting
@@ -261,6 +263,10 @@ main()
 					led_ylw::set();
 				else
 					led_ylw::reset();
+			}
+			else if (min_id > last_min_id) { // lost master, trigger re-sync!
+				state = initializing;
+				break;
 			}
 			state = (board_id == 0) ? transmitting : receiving;
 			min_id = board_id; // reset
@@ -276,7 +282,7 @@ main()
 
 				board_list |= 1 << slot_id;
 
-				if (!timer_started and slot_id >= last_min_id) // we found the leading board
+				if (!timer_started and slot_id >= last_min_id) // we found the former leading board
 				{
 					reset_and_start_timer<GlobalSync>();
 					timer_started = true;
@@ -286,7 +292,7 @@ main()
 					min_id = slot_id;
 
 				if (slot_id == board_id)
-					state = doublicate_id;
+					state = duplicate_id;
 
 				//put data to spinalcord array here
 			}
@@ -309,7 +315,7 @@ main()
 			sendnow = false;
 			break;
 
-		case doublicate_id: error_state(); break;
+		case duplicate_id: error_state(); break;
 
 		} // switch(state)
 
