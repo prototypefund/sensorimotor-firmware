@@ -1,6 +1,9 @@
 #include <xpcc/architecture/platform.hpp>
+
+#include <src/common.hpp>
 #include <src/timer.hpp>
 #include <src/sendbuffer.hpp>
+#include <src/communication.hpp>
 
 using namespace Board;
 using namespace supreme;
@@ -22,29 +25,26 @@ enum CycleState {
 	duplicate_id   = 7,
 };
 
-enum RecvState {
-	sync0     = 0,
-	sync1     = 1,
-	read_id   = 2,
-	read_data = 3,
-	validate  = 4,
-	success   = 5,
-	error     = 6,
-	done      = 7,
-};
 
 
-/* 1Mbaud/s = 1.000.000 baud/s = 100.000 byte/s
+
+/* 3 Mbaud/s = 3.000.000 baud/s = 300.000 byte/s
    with 10 bit per byte (8N1)
-   -> 10 us per byte
+   -> 3.34 us per byte
+
+	/// synchronizing procedure ///
+	min_id = board_id // we must assume, that we are the first board, until we know better.
+	re-sync if min_id has changed:
+		setperiod ( frametime_us - min_id * slottime_us)
 */
-constexpr unsigned byte_transmission_time_us = 10;
+
+constexpr unsigned byte_transmission_time_us = 10; //TODO
 constexpr unsigned deadtime_us = 20;
-constexpr unsigned bytes_per_slot = 10;
+constexpr unsigned bytes_per_slot = 64;
 constexpr unsigned slottime_us = bytes_per_slot * byte_transmission_time_us + deadtime_us;
 
 constexpr uint8_t syncbyte = 0x55;
-constexpr uint8_t board_id = 3;    //TODO read from EEPROM
+constexpr uint8_t board_id = 5;    //TODO read from EEPROM
 constexpr uint8_t max_id = 8;
 constexpr unsigned frametime_us = 10000; /* 10.000 us = 10 ms = 100 Hz */
 constexpr unsigned local_delay_us = board_id * slottime_us;
@@ -57,7 +57,7 @@ const uint8_t motors_per_board[4][3] = { { 0,  2,  4} // 0
                                        , { 6,  8, 10} // 2/2 * 6 + 2%2
                                        , { 7,  9, 11} // 3/2 * 6 + 3%2
                                        , {12, 14, 16} // 4
-								   }; */
+                                       }; */
 
 constexpr
 uint8_t get_motor_id_from_board_id(uint8_t board_id, uint8_t motor_index) {
@@ -67,9 +67,7 @@ uint8_t get_motor_id_from_board_id(uint8_t board_id, uint8_t motor_index) {
 static_assert(slottime_us > 0);
 static_assert(local_delay_us > 0);
 
-uint8_t packets = 0;
-uint8_t errors  = 0;
-uint8_t cycles = 0;
+
 
 
 /*
@@ -92,95 +90,10 @@ volatile bool sendnow      = false;
 volatile bool syncnow      = false;
 volatile bool write_motors = false;
 
-// TODO using TrayType = uint16_t;
 
-bool read_slot(uint8_t& received_id) {
-	static RecvState rx_state = sync0;
-	static uint8_t data = 0;
-	static uint8_t bytecount = 0;
-	static uint8_t checksum = 0;
 
-	bool result = false;
 
-	if (rx_timed_out) {
-		rx_state = sync0;
-		++errors;
-		rx_timed_out = false;
-	}
 
-	switch(rx_state)
-	{
-		case sync0:
-			if (rs485_spinalcord::uart::read(data)) {
-				if (data == syncbyte) {
-					rx_state = sync1;
-					checksum = syncbyte;
-				}
-				// stay in sync0 otherwise
-			}
-			break;
-
-		case sync1:
-			if (rs485_spinalcord::uart::read(data)) {
-				if (data == syncbyte) {
-					rx_state = read_id;
-					checksum += syncbyte;
-					reset_and_start_timer<RxTimeout>();
-				}
-				else
-					rx_state = sync0;
-			}
-			break;
-
-		case read_id:
-			if (rs485_spinalcord::uart::read(data)) {
-				if (data < max_id) {
-					received_id = data;
-					checksum += received_id;
-					rx_state = read_data;
-					bytecount = 0;
-				} else
-					rx_state = error; // did not received a valid id byte
-			}
-			break;
-
-		case read_data:
-			if (rs485_spinalcord::uart::read(data)) {
-				++bytecount;
-				checksum += data;
-				if (bytecount == bytes_per_slot - 3/*preamble*/)
-					rx_state = validate;
-			}
-			break;
-
-		case validate:
-			rx_state = (checksum == 0) ? success : error;
-			break;
-
-		case success: result = true;  rx_state = done; ++packets; break;
-		case error:   result = false; rx_state = done; ++errors;  break;
-
-		case done:
-		default:
-			RxTimeout::pause(); // stop timer before leaving
-			rx_state = sync0;      // start over again
-			break;
-
-	} // switch(rx_state)
-
-	return result; // return true of valid slot could be read
-}
-
-void error_state(void)
-{
-	led_red::set();
-	led_ylw::reset();
-	while(1) {
-		led_red::toggle();
-		led_ylw::toggle();
-		xpcc::delayMilliseconds(500);
-	}
-}
 
 void ping_motor(uint8_t motor_id) {
 	static uint8_t send_data[5] = {0xFF,0xFF,0xE0,0x00,0x00};
@@ -200,7 +113,7 @@ main()
 
 	init_timer<GlobalSync, frametime_us*2>();
 	init_timer<LocalDelay, local_delay_us>();
-	init_timer<RxTimeout , slottime_us   >();
+	init_timer<RxTimeout , slottime_us   >(); //TODO move to communication
 	init_timer<MotorTimer, motortime_us  >();
 
 	CycleState state = initializing;
@@ -208,7 +121,6 @@ main()
 	uint8_t min_id = board_id; // assume, until we know better
 	uint8_t last_min_id = 255;
 
-	uint8_t slot_id = 255;
 	unsigned synctime_us = frametime_us;
 	uint8_t board_list = 0;
 	uint8_t last_board_list = 0;
@@ -217,13 +129,16 @@ main()
 
 	supreme::Sendbuffer<rs485_spinalcord, bytes_per_slot, syncbyte> send_buffer(board_id);
 
+	supreme::CommunicationController<RxTimeout, syncbyte, max_id, bytes_per_slot> com;
+
 	constexpr uint8_t motor_ids[3] = { get_motor_id_from_board_id(board_id, 0)
 	                                 , get_motor_id_from_board_id(board_id, 1)
 	                                 , get_motor_id_from_board_id(board_id, 2) };
 
 
-	// TODO ping motors...
-	// check, correct motors connected.
+	// TODO ping motors...and check if motors are connected correctly.
+
+	uint8_t cycles = 0;
 
 	while (1)
 	{
@@ -238,8 +153,9 @@ main()
 			break;
 
 		case synchronizing: /* searching for minimal id */
-			if (read_slot(slot_id))
+			if (com.read_slot(rx_timed_out))
 			{
+				uint8_t slot_id = com.get_received_id();
 				if (slot_id < min_id) { // found new board
 					min_id = slot_id;
 					reset_and_start_timer<GlobalSync>();
@@ -279,8 +195,9 @@ main()
 			break;
 
 		case receiving:
-			if (read_slot(slot_id))
+			if (com.read_slot(rx_timed_out))
 			{
+				uint8_t slot_id = com.get_received_id();
 				//TODO check with expected boards, from last_board_list, resync on deviation
 
 				board_list |= 1 << slot_id;
@@ -310,7 +227,7 @@ main()
 
 		case transmitting:
 			send_buffer.prepare( min_id, last_min_id, last_board_list,
-			                     packets, errors, cycles );
+			                     com.packets, com.errors, cycles );
 			send_buffer.transmit();
 			if (min_id == board_id) { // it seems that we are the leading board
 				reset_and_start_timer<GlobalSync>();
@@ -340,16 +257,8 @@ main()
 	return 0;
 }
 
-/*
-	/// synchronizing procedure ///
 
-	min_id = board_id // we must assume, that we are the first board, until we know better.
-
-	re-sync if min_id has changed:
-		setperiod ( frametime_us - (min_id+1) * slottime_us)
-		auto-apply = true
-*/
-
+/* Timer Interrupt Service Routines */
 XPCC_ISR(TIM2)
 {
 	LocalDelay::start();
