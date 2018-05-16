@@ -168,7 +168,7 @@ struct external {
 };
 
 /* declare interfaces */
-using rs485_spinalcord = rs485_interface<spinalcord, 1000000>; // 1 Mbaud/s
+using rs485_spinalcord = rs485_interface<spinalcord, 3000000>; // 3 Mbaud/s
 using rs485_motorcord  = rs485_interface<motorcord , 1000000>; // 1 Mbaud/s
 using rs485_external   = rs485_interface<external  , 1000000>; // 1 Mbaud/s
 
