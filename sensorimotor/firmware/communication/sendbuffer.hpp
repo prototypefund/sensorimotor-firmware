@@ -6,9 +6,10 @@
 
 namespace supreme {
 
-template <unsigned N, unsigned NumSyncBytes = 2>
+template <unsigned N>
 class sendbuffer {
-	static const uint8_t chk_init = 0xFE; /* (0xff + 0xff) % 256*/
+	static const unsigned NumSyncBytes = 2;
+	static const uint8_t chk_init = 0xFE; /* (0xff + 0xff) % 256 */
 	uint16_t  ptr = NumSyncBytes;
 	uint8_t   buffer[N];
 	uint8_t   checksum = chk_init;
