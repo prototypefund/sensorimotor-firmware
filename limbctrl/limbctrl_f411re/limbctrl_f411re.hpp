@@ -13,7 +13,7 @@
 
 using namespace xpcc::stm32;
 
-
+//TODO rename Board to Limbcontroller?
 namespace Board
 {
 
@@ -97,33 +97,6 @@ using mot_pwr_en = GpioA7;
 using com_pwr_en = GpioA6;
 
 
-/* spinal cord communication */
-namespace spinalcord {
-    using ro = GpioInputA10;
-    using di = GpioOutputA9;
-    using read_disable = GpioOutputA11;
-    using drive_enable = GpioOutputA12;
-	using uart = Usart1;
-}
-
-/* motor cord communication */
-namespace motorcord {
-	using ro = GpioInputA3;
-	using di = GpioOutputA2;
-    using read_disable = GpioOutputA4;
-    using drive_enable = GpioOutputA5;
-	using uart = Usart2;
-}
-
-/* external interface communication */
-namespace external {
-    using ro = GpioInputC7;
-    using di = GpioOutputC6;
-    using read_disable = GpioOutputC8;
-    using drive_enable = GpioOutputA13;
-	using uart = Usart6;
-}
-
 namespace i2c {
     using sda = GpioC9;
     using scl = GpioA8;
@@ -135,6 +108,69 @@ namespace i2c {
 //using Leds = xpcc::SoftwareGpioPort< LedD13 >;
 
 
+
+template <typename Interface, unsigned baudrate>
+struct rs485_interface {
+
+	using read_output  = typename Interface::read_output;
+	using drive_input  = typename Interface::drive_input;
+	using read_disable = typename Interface::read_disable;
+	using drive_enable = typename Interface::drive_enable;
+	using uart         = typename Interface::uart;
+
+	static void initialize(void) {
+		drive_input::connect(uart::Tx);
+		read_output::connect(uart::Rx);
+		uart::template initialize<systemClock, baudrate>(12); // 1Mbaud/s
+		drive_enable::setOutput();
+		read_disable::setOutput();
+		read_disable::reset();     // set to receive mode
+		drive_enable::reset();
+	}
+	static void send_mode(void) {
+		xpcc::delayNanoseconds(50); // wait for signal propagation
+		read_disable::set();
+		drive_enable::set();
+		xpcc::delayMicroseconds(1); // wait at least one bit after enabling the driver
+	}
+	static void recv_mode(void) {
+		xpcc::delayMicroseconds(10); // wait at least one byte before disabling the driver
+		read_disable::reset();
+		drive_enable::reset();
+		xpcc::delayNanoseconds(70); // wait for signal propagation
+	}
+};
+
+
+/* declare pins for interfaces */
+struct spinalcord {
+	using read_output  = GpioInputA10;
+	using drive_input  = GpioOutputA9;
+	using read_disable = GpioOutputA11;
+	using drive_enable = GpioOutputA12;
+	using uart = Usart1;
+};
+
+struct motorcord {
+	using read_output  = GpioInputA3;
+	using drive_input  = GpioOutputA2;
+	using read_disable = GpioOutputA4;
+	using drive_enable = GpioOutputA5;
+	using uart = Usart2;
+};
+
+struct external {
+	using read_output  = GpioInputC7;
+	using drive_input  = GpioOutputC6;
+	using read_disable = GpioOutputC8;
+	using drive_enable = GpioOutputA13;
+	using uart = Usart6;
+};
+
+/* declare interfaces */
+using rs485_spinalcord = rs485_interface<spinalcord, 1000000>; // 1 Mbaud/s
+using rs485_motorcord  = rs485_interface<motorcord , 1000000>; // 1 Mbaud/s
+using rs485_external   = rs485_interface<external  , 1000000>; // 1 Mbaud/s
 
 
 
@@ -157,25 +193,11 @@ initialize()
 
 
 	/* setup rs485 interfaces */
-	spinalcord::di::connect(spinalcord::uart::Tx);
-	spinalcord::ro::connect(spinalcord::uart::Rx);
-	spinalcord::uart::initialize<systemClock, 1000000>(12); // 1Mbaud/s
-	spinalcord::drive_enable::setOutput();
-	spinalcord::read_disable::setOutput();
+	rs485_spinalcord::initialize();
+	rs485_motorcord ::initialize();
+	rs485_external  ::initialize();
 
-	motorcord::di::connect(motorcord::uart::Tx);
-	motorcord::ro::connect(motorcord::uart::Rx);
-	motorcord::uart::initialize<systemClock, 1000000>(12); // 1Mbaud/s
-	motorcord::drive_enable::setOutput();
-	motorcord::read_disable::setOutput();
-
-	external::di::connect(external::uart::Tx);
-	external::ro::connect(external::uart::Rx);
-	external::uart::initialize<systemClock, 1000000>(12); // 1Mbaud/s
-	external::drive_enable::setOutput();
-	external::read_disable::setOutput();
-
-	/* enable rs485 interfaces */
+	/* enable power for rs485 interfaces */
 	com_pwr_en::setOutput();
 	com_pwr_en::set(); 
 

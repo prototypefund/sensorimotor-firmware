@@ -1,13 +1,8 @@
-#ifndef SUPREME_LIMBCTRL_COMMUNICATION_HPP
-#define SUPREME_LIMBCTRL_COMMUNICATION_HPP
+#ifndef SUPREME_LIMBCTRL_TIMER_HPP
+#define SUPREME_LIMBCTRL_TIMER_HPP
 
 #include <xpcc/architecture/platform.hpp>
 
-void motorcord_send_mode();
-void motorcord_receive_mode();
-
-void spinalcord_send_mode();
-void spinalcord_receive_mode();
 
 template <typename TimerType, unsigned Period>
 static void
@@ -29,4 +24,4 @@ reset_and_start_timer()
 	TimerType::start();
 }
 
-#endif /* SUPREME_LIMBCTRL_COMMUNICATION_HPP */
+#endif /* SUPREME_LIMBCTRL_TIMER_HPP */

@@ -1,12 +1,15 @@
 #include <xpcc/architecture/platform.hpp>
-
-#include <src/communication.hpp>
+#include <src/timer.hpp>
+#include <src/sendbuffer.hpp>
 
 using namespace Board;
+using namespace supreme;
+
 
 using GlobalSync = xpcc::stm32::Timer2;
 using LocalDelay = xpcc::stm32::Timer3;
 using RxTimeout  = xpcc::stm32::Timer4;
+using MotorTimer = xpcc::stm32::Timer5;
 
 enum CycleState {
 	initializing   = 0,
@@ -14,7 +17,9 @@ enum CycleState {
 	synchronized   = 2,
 	receiving      = 3,
 	transmitting   = 4,
-	duplicate_id  = 5,
+	writing_motors = 5,
+	idle           = 6,
+	duplicate_id   = 7,
 };
 
 enum RecvState {
@@ -44,6 +49,21 @@ constexpr uint8_t max_id = 8;
 constexpr unsigned frametime_us = 10000; /* 10.000 us = 10 ms = 100 Hz */
 constexpr unsigned local_delay_us = board_id * slottime_us;
 
+constexpr unsigned motortime_us = frametime_us - 2000;
+
+/*
+const uint8_t motors_per_board[4][3] = { { 0,  2,  4} // 0
+                                       , { 1,  3,  5} // i/2 * 6 + i%2 + 2*j
+                                       , { 6,  8, 10} // 2/2 * 6 + 2%2
+                                       , { 7,  9, 11} // 3/2 * 6 + 3%2
+                                       , {12, 14, 16} // 4
+								   }; */
+
+constexpr
+uint8_t get_motor_id_from_board_id(uint8_t board_id, uint8_t motor_index) {
+	return board_id/2 * 6 + board_id%2 + 2*motor_index;
+}
+
 static_assert(slottime_us > 0);
 static_assert(local_delay_us > 0);
 
@@ -51,7 +71,6 @@ uint8_t packets = 0;
 uint8_t errors  = 0;
 uint8_t cycles = 0;
 
-uint8_t send_buffer[bytes_per_slot];
 
 /*
 	5 boards à 400 us = 2000 us = 2 ms communication time
@@ -71,6 +90,7 @@ uint8_t send_buffer[bytes_per_slot];
 volatile bool rx_timed_out = false;
 volatile bool sendnow      = false;
 volatile bool syncnow      = false;
+volatile bool write_motors = false;
 
 // TODO using TrayType = uint16_t;
 
@@ -91,7 +111,7 @@ bool read_slot(uint8_t& received_id) {
 	switch(rx_state)
 	{
 		case sync0:
-			if (spinalcord::uart::read(data)) {
+			if (rs485_spinalcord::uart::read(data)) {
 				if (data == syncbyte) {
 					rx_state = sync1;
 					checksum = syncbyte;
@@ -101,7 +121,7 @@ bool read_slot(uint8_t& received_id) {
 			break;
 
 		case sync1:
-			if (spinalcord::uart::read(data)) {
+			if (rs485_spinalcord::uart::read(data)) {
 				if (data == syncbyte) {
 					rx_state = read_id;
 					checksum += syncbyte;
@@ -113,7 +133,7 @@ bool read_slot(uint8_t& received_id) {
 			break;
 
 		case read_id:
-			if (spinalcord::uart::read(data)) {
+			if (rs485_spinalcord::uart::read(data)) {
 				if (data < max_id) {
 					received_id = data;
 					checksum += received_id;
@@ -125,7 +145,7 @@ bool read_slot(uint8_t& received_id) {
 			break;
 
 		case read_data:
-			if (spinalcord::uart::read(data)) {
+			if (rs485_spinalcord::uart::read(data)) {
 				++bytecount;
 				checksum += data;
 				if (bytecount == bytes_per_slot - 3/*preamble*/)
@@ -151,40 +171,6 @@ bool read_slot(uint8_t& received_id) {
 	return result; // return true of valid slot could be read
 }
 
-void init_send_buffer(void)
-{
-	/* clear buffer */
-	memset(send_buffer, 0, bytes_per_slot);
-	/* add preamble */
-	send_buffer[0] = syncbyte;
-	send_buffer[1] = syncbyte;
-	send_buffer[2] = board_id;
-}
-
-//TODO unify with sendbuffer from sensorimotor
-void prepare_transmission(uint8_t min_id, uint8_t last_min_id, uint8_t board_list)
-{
-	send_buffer[3] = min_id;
-	send_buffer[4] = last_min_id;
-	send_buffer[5] = board_list;
-	send_buffer[6] = packets;
-	send_buffer[7] = errors;
-	send_buffer[8] = cycles;
-
-	/* create checksum */
-	uint8_t checksum = 0;
-	for (unsigned i = 0; i < bytes_per_slot-1; ++i)
-		checksum += send_buffer[i];
-	send_buffer[bytes_per_slot-1] = ~checksum + 1;
-}
-
-void send_data(void) {
-	spinalcord_send_mode();
-	spinalcord::uart::write(send_buffer, bytes_per_slot);
-	spinalcord::uart::flushWriteBuffer();
-	spinalcord_receive_mode();
-}
-
 void error_state(void)
 {
 	led_red::set();
@@ -196,17 +182,26 @@ void error_state(void)
 	}
 }
 
+void ping_motor(uint8_t motor_id) {
+	static uint8_t send_data[5] = {0xFF,0xFF,0xE0,0x00,0x00};
+	send_data[3] = motor_id;
+	send_data[4] = ~(0xDE + motor_id) + 1; //checksum
+
+	rs485_motorcord::send_mode();
+	rs485_motorcord::uart::write(send_data, 5);
+	rs485_motorcord::uart::flushWriteBuffer();
+	rs485_motorcord::recv_mode();
+}
+
 int
 main()
 {
 	Board::initialize();
 
-	motorcord_receive_mode();
-	spinalcord_receive_mode();
-
 	init_timer<GlobalSync, frametime_us*2>();
 	init_timer<LocalDelay, local_delay_us>();
 	init_timer<RxTimeout , slottime_us   >();
+	init_timer<MotorTimer, motortime_us  >();
 
 	CycleState state = initializing;
 
@@ -220,7 +215,15 @@ main()
 
 	bool timer_started = false;
 
-	init_send_buffer();
+	supreme::Sendbuffer<rs485_spinalcord, bytes_per_slot, syncbyte> send_buffer(board_id);
+
+	constexpr uint8_t motor_ids[3] = { get_motor_id_from_board_id(board_id, 0)
+	                                 , get_motor_id_from_board_id(board_id, 1)
+	                                 , get_motor_id_from_board_id(board_id, 2) };
+
+
+	// TODO ping motors...
+	// check, correct motors connected.
 
 	while (1)
 	{
@@ -298,21 +301,35 @@ main()
 			}
 			if (sendnow)
 				state = transmitting;
-			if (syncnow) {
-				state = synchronized;
-				syncnow = false;
+
+			if (write_motors) {
+				state = writing_motors;
+				write_motors = false;
 			}
 			break;
 
 		case transmitting:
-			prepare_transmission(min_id, last_min_id, last_board_list);
-			send_data();
+			send_buffer.prepare( min_id, last_min_id, last_board_list,
+			                     packets, errors, cycles );
+			send_buffer.transmit();
 			if (min_id == board_id) { // it seems that we are the leading board
 				reset_and_start_timer<GlobalSync>();
 				timer_started = true;
 			}
 			state = receiving;
 			sendnow = false;
+			break;
+
+		case writing_motors:
+			ping_motor(3);
+			state = idle;
+			break;
+
+		case idle:
+			if (syncnow) {
+				state = synchronized;
+				syncnow = false;
+			}
 			break;
 
 		case duplicate_id: error_state(); break;
@@ -336,7 +353,9 @@ main()
 XPCC_ISR(TIM2)
 {
 	LocalDelay::start();
+	MotorTimer::start();
 	GlobalSync::acknowledgeInterruptFlags(GlobalSync::InterruptFlag::Update);
+	GlobalSync::applyAndReset();
 	GlobalSync::pause();
 	led_red::toggle();
 	syncnow = true;
@@ -345,6 +364,7 @@ XPCC_ISR(TIM2)
 XPCC_ISR(TIM3)
 {
 	LocalDelay::acknowledgeInterruptFlags(LocalDelay::InterruptFlag::Update);
+	LocalDelay::applyAndReset();
 	LocalDelay::pause();
 	sendnow = true; // trigger sending own data now
 }
@@ -352,6 +372,15 @@ XPCC_ISR(TIM3)
 XPCC_ISR(TIM4)
 {
 	RxTimeout::acknowledgeInterruptFlags(RxTimeout::InterruptFlag::Update);
+	RxTimeout::applyAndReset();
 	RxTimeout::pause();
 	rx_timed_out = true;
+}
+
+XPCC_ISR(TIM5)
+{
+	MotorTimer::acknowledgeInterruptFlags(MotorTimer::InterruptFlag::Update);
+	MotorTimer::applyAndReset();
+	MotorTimer::pause();
+	write_motors = true;
 }
