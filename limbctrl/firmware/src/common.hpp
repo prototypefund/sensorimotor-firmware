@@ -8,6 +8,7 @@ using namespace Board;
 namespace supreme {
 
 	void error_state(void);
+	void assert(bool condition, uint8_t code);
 
 } /* namespace supreme */
 

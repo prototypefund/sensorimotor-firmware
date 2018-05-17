@@ -7,6 +7,8 @@ using namespace Board;
 
 namespace supreme {
 
+/* Handles communication with other limbs via spinal cord
+*/
 template <typename TimerType, uint8_t SyncByte, uint8_t MaxID, unsigned BytesPerSlot>
 class CommunicationController {
 public:
