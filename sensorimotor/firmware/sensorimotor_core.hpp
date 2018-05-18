@@ -40,6 +40,8 @@ class sensorimotor_core {
 	Sensors          sensors;
 	motor_ifx9201sg  motor;
 
+	uint8_t          watchcat = 0;
+
 public:
 
 	sensorimotor_core()
@@ -67,6 +69,11 @@ public:
 	void step(void) {
 		apply_target_values();
 		sensors.step();
+
+		/* safety switchoff */
+		if (watchcat < 100) watchcat++;
+		else enabled = false;
+
 		//const uint16_t value = sensors.position.get_value();
 
 		/* simple test controller, toggles between max bounds */
@@ -96,7 +103,7 @@ public:
 	void set_target_pwm(uint8_t pwm) { if (pwm <= 128  ) target.pwm = pwm; }
 	void set_target_dir(bool    dir) { target.dir = dir; }
 
-	void enable()  { enabled = true;  }
+	void enable()  { enabled = true; watchcat = 0; }
 	void disable() { enabled = false; }
 	bool is_enabled() const { return enabled; }
 
