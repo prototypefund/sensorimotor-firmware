@@ -43,24 +43,12 @@ constexpr unsigned bytes_per_slot = 64;
 constexpr unsigned slottime_us = bytes_per_slot * byte_transmission_time_us + deadtime_us;
 
 constexpr uint8_t syncbyte = 0x55;
-constexpr uint8_t board_id = 5;    //TODO read from EEPROM
+constexpr uint8_t board_id = 1;    //TODO read from EEPROM
 constexpr uint8_t max_id = 8;
 constexpr unsigned frametime_us = 10000; /* 10.000 us = 10 ms = 100 Hz */
 constexpr unsigned local_delay_us = board_id * slottime_us;
 
 constexpr unsigned motortime_us = frametime_us - 2000;
-
-/*
-const uint8_t motors_per_board[4][3] = { { 0,  2,  4} // 0
-                                       , { 1,  3,  5} // i/2 * 6 + i%2 + 2*j
-                                       , { 6,  8, 10} // 2/2 * 6 + 2%2
-                                       , { 7,  9, 11} // 3/2 * 6 + 3%2
-                                       , {12, 14, 16} // 4
-                                       }; */
-constexpr
-uint8_t get_motor_id_from_board_id(uint8_t board_id, uint8_t motor_index) {
-	return board_id/2 * 6 + board_id%2 + 2*motor_index;
-}
 
 static_assert(slottime_us > 0);
 static_assert(local_delay_us > 0);
@@ -111,20 +99,16 @@ main()
 
 	supreme::CommunicationController<RxTimeout, syncbyte, max_id, bytes_per_slot> com;
 
-	constexpr uint8_t motor_ids[3] = { get_motor_id_from_board_id(board_id, 0)
-	                                 , get_motor_id_from_board_id(board_id, 1)
-	                                 , get_motor_id_from_board_id(board_id, 2) };
-
-
-	// TODO ping motors...and check if motors are connected correctly.
-
 	uint8_t cycles = 0;
 
+	/* carrier for voltage setpoints, TODO integrate in SC-Data structure */
+	typedef supreme::MotorCord<rs485_motorcord, MotorTimer, board_id, 3> MotorCord_t;
 
-	unsigned motor_idx = 0;
-	supreme::ux_communication_ctrl<rs485_motorcord, MotorTimer> motor_1(1);
-	supreme::ux_communication_ctrl<rs485_motorcord, MotorTimer> motor_2(2);
-	supreme::ux_communication_ctrl<rs485_motorcord, MotorTimer> motor_3(3);
+	MotorCord_t::target_voltage_t target_voltages;
+	target_voltages.fill(float_to_sc(0.1));
+
+	MotorCord_t motorcord(target_voltages);
+
 
 	while (1)
 	{
@@ -208,6 +192,7 @@ main()
 			if (write_motors) {
 				state = writing_motors;
 				write_motors = false;
+				motorcord.prepare();
 			}
 			break;
 
@@ -224,28 +209,16 @@ main()
 			break;
 
 		case writing_motors:
-			switch(motor_idx) {
-			case 0:
-				if (motor_3.step(write_motors)) {
-					write_motors = false;
-					++motor_idx;
-				}
+			switch( motorcord.transmit(write_motors) )
+			{
+			case MotorCord_t::State_t::done:
+				state = idle;
+				/*Fall through*/
+			case MotorCord_t::State_t::waiting_for_next:
+				write_motors = false;
 				break;
-			case 1:
-				if (motor_2.step(write_motors)) {
-					write_motors = false;
-					++motor_idx;
-				}
-				break;
-			case 2:
-				if (motor_1.step(write_motors)) {
-					write_motors = false;
-					state = idle;
-					motor_idx = 0;
-				}
-				break;
-			}
-
+			default: break;
+			} // switch
 			break;
 
 		case idle:

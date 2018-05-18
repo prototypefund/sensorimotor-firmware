@@ -1,10 +1,12 @@
 #ifndef SUPREME_LIMBCONTROLLER_UX_COM
 #define SUPREME_LIMBCONTROLLER_UX_COM
 
+#include <array>
+
 #include <xpcc/architecture/platform.hpp>
 #include <src/common.hpp>
 #include <src/timer.hpp>
-//#include <communication/sendbuffer.hpp>
+#include <src/math.hpp>
 
 using namespace Board;
 
@@ -81,7 +83,7 @@ public:
 	enum recv_state_t {
 		syncing   = 0,
 		awaiting  = 1,
-		get_id    = 2,
+		read_id   = 2,
 		reading   = 3,
 		verifying = 5,
 		pending   = 6,
@@ -102,9 +104,7 @@ private:
 	uint8_t                      motor_id;
 
 	/* motor related */
-	bool                         target_dir = false;
-	uint8_t                      target_pwm = 0;
-
+	pwm_t                        target_pwm = {0, false};
 
 	command_id_t                 cmd_id    = unrecognized_command;
 	recv_state_t                 cmd_state = syncing;
@@ -113,12 +113,17 @@ private:
 	bool                         sync_state = false;
 
 	uint16_t                     errors = 0;
-
 	connection_status_t          connection_status = connection_status_t::unknown;
 
 public:
 
-	ux_communication_ctrl(uint8_t motor_id) : msg(), motor_id(motor_id) {}
+	ux_communication_ctrl(uint8_t motor_id) : msg(), motor_id(motor_id) {
+		assert(motor_id < 12, 6);
+	}
+
+	void set_target_voltage(scdata_t target_voltage) {
+		target_pwm = sc_to_pwm(target_voltage);
+	}
 
 	bool step(bool ux_request_timed_out)
 	{
@@ -137,7 +142,9 @@ public:
 
 		if (connection_status != connection_status_t::request_pending
 		and connection_status != connection_status_t::responded ) {
-			send_state_request();//send_ping();
+			//send_ping()
+			//send_state_request();
+			send_motor_request();
 			Timer_t:: template setPeriod<Board::systemClock>(500);
 			reset_and_start_timer<Timer_t>();
 			connection_status = connection_status_t::request_pending;
@@ -145,14 +152,12 @@ public:
 		{
 			while(receive_response());
 		}
-		//led_red::toggle();
 		return false;
 	}
 
 	connection_status_t get_status(void) const { return connection_status; }
 
-	void request_data() { /*TODO implement */ }
-
+	uint8_t get_id(void) const { return motor_id; }
 
 private:
 
@@ -166,6 +171,14 @@ private:
 	void send_state_request(void) {
 		msg.add_byte(0xC0);
 		msg.add_byte(motor_id);
+		msg.transmit();
+	}
+
+	void send_motor_request(void) {
+		const uint8_t cmd = target_pwm.dir ? 0xB1 : 0xB0;
+		msg.add_byte(cmd);
+		msg.add_byte(motor_id);
+		msg.add_byte(target_pwm.dc);
 		msg.transmit();
 	}
 
@@ -215,7 +228,7 @@ private:
 			default: /* unrecognized command */
 				return error;
 		} /* switch recv_buffer */
-		return get_id;
+		return read_id;
 	}
 
 	recv_state_t get_sync_bytes()
@@ -257,7 +270,7 @@ private:
 				cmd_state = search_for_command();
 				break;
 
-			case get_id:
+			case read_id:
 				if (not byte_received()) return false;
 				cmd_state = waiting_for_id();
 				break;
@@ -297,6 +310,80 @@ private:
 		return true; // continue
 	}
 
+};
+
+/*
+formula: i/2 * 6 + i%2 + 2*j
+
+id  |  motors
+----+------------
+ 0  |  0,  2,  4
+ 1  |  1,  3,  5
+ 2  |  6,  8, 10
+ 3  |  7,  9, 11
+(4) | 12, 14, 16
+(5) | 13, 15, 17
+*/
+
+constexpr
+uint8_t get_motor_id_from_board_id(uint8_t board_id, uint8_t motor_index) {
+	return board_id/2 * 6 + board_id%2 + 2*motor_index;
+}
+
+template <typename InterfaceType, typename TimerType, unsigned BoardID, unsigned NumMotors>
+class MotorCord {
+public:
+
+	typedef std::array<scdata_t, 12> target_voltage_t;
+
+	enum State_t {
+		ready = 0,
+		pending,
+		waiting_for_next,
+		done,
+	};
+
+
+	MotorCord(target_voltage_t const& voltages)
+	: voltages(voltages)
+	{
+		// TODO ping motors...and check if motors are connected correctly.
+	}
+
+	void prepare(void) {
+		for (auto& m: motors)
+			m.set_target_voltage(voltages[m.get_id()]);
+		idx = 0;
+		state = ready;
+	}
+
+	/* after preparing motor commands,
+	   transmit() can be called multiple times,
+	   it returns true times the number of motors */
+	State_t transmit(bool is_timeout_out)
+	{
+		assert(idx < NumMotors, 7);
+
+		if (motors[idx].step(is_timeout_out)) {
+			++idx;
+			state = (idx < NumMotors) ? waiting_for_next : done;
+		} else
+			state = pending;
+
+		return state;
+	}
+
+private:
+
+	unsigned idx = 0;
+	State_t state = done; // prepare_motor_commands() must be called first
+
+	typedef supreme::ux_communication_ctrl<InterfaceType, TimerType> sensorimotor_t;
+	std::array<sensorimotor_t,NumMotors> motors = { get_motor_id_from_board_id(BoardID, 0)
+	                                              , get_motor_id_from_board_id(BoardID, 1)
+	                                              , get_motor_id_from_board_id(BoardID, 2) };
+
+	target_voltage_t const& voltages;
 };
 
 } /* namespace supreme */
