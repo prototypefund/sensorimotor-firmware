@@ -2,7 +2,7 @@
 
 #include <src/common.hpp>
 #include <src/timer.hpp>
-#include <src/sendbuffer.hpp>
+#include <src/spinalcord.hpp>
 #include <src/communication.hpp>
 
 #include <src/ux_com.hpp>
@@ -95,20 +95,20 @@ main()
 
 	bool timer_started = false;
 
-	supreme::Sendbuffer<rs485_spinalcord, bytes_per_slot, syncbyte> send_buffer(board_id);
-
-	supreme::CommunicationController<RxTimeout, syncbyte, max_id, bytes_per_slot> com;
-
-	uint8_t cycles = 0;
 
 	/* carrier for voltage setpoints, TODO integrate in SC-Data structure */
 	typedef supreme::MotorCord<rs485_motorcord, MotorTimer, board_id, 3> MotorCord_t;
+	typedef supreme::SpinalCord<rs485_spinalcord, bytes_per_slot, syncbyte, MotorCord_t, board_id> SpinalCord_t;
 
 	MotorCord_t::target_voltage_t target_voltages;
 	target_voltages.fill(float_to_sc(0.1));
 
 	MotorCord_t motorcord(target_voltages);
+	SpinalCord_t spinalcord(motorcord);
 
+	supreme::CommunicationController<RxTimeout, syncbyte, max_id, bytes_per_slot> com;
+
+	uint8_t cycles = 0;
 
 	while (1)
 	{
@@ -197,9 +197,9 @@ main()
 			break;
 
 		case transmitting:
-			send_buffer.prepare( min_id, last_min_id, last_board_list,
+			spinalcord.prepare( min_id, last_min_id, last_board_list,
 			                     com.packets, com.errors, cycles );
-			send_buffer.transmit();
+			spinalcord.transmit();
 			if (min_id == board_id) { // it seems that we are the leading board
 				reset_and_start_timer<GlobalSync>();
 				timer_started = true;

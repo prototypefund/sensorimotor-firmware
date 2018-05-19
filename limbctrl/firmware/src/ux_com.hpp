@@ -7,6 +7,7 @@
 #include <src/common.hpp>
 #include <src/timer.hpp>
 #include <src/math.hpp>
+#include <src/transceivebuffer.hpp>
 
 using namespace Board;
 
@@ -21,55 +22,7 @@ namespace supreme {
 		unknown,
 	};
 
-template <typename Interface, unsigned N>
-class sendbuffer {
-	static const unsigned NumSyncBytes = 2;
-	static const uint8_t chk_init = 0xFE; /* (0xff + 0xff) % 256 */
-	uint16_t  ptr = NumSyncBytes;
-	uint8_t   buffer[N];
-	uint8_t   checksum = chk_init;
 
-public:
-	sendbuffer()
-	{
-		static_assert(N > NumSyncBytes, "Invalid buffer size.");
-		for (uint8_t i = 0; i < NumSyncBytes; ++i)
-			buffer[i] = 0xFF; // init sync bytes once
-	}
-
-	void add_byte(uint8_t byte) {
-		assert(ptr < (N-1), 1);
-		buffer[ptr++] = byte;
-		checksum += byte;
-	}
-
-	void add_word(uint16_t word) {
-		add_byte((word  >> 8) & 0xff);
-		add_byte( word        & 0xff);
-	}
-
-	void discard(void) { ptr = NumSyncBytes; }
-
-	void transmit() {
-		if (ptr == NumSyncBytes) return;
-		add_checksum();
-		Interface::send_mode();
-		Interface::uart::write(buffer, ptr);
-		Interface::uart::flushWriteBuffer();
-		Interface::recv_mode();
-		/* prepare next */
-		ptr = NumSyncBytes;
-	}
-
-	uint16_t size(void) const { return ptr; }
-
-private:
-	void add_checksum() {
-		assert(ptr < N, 8);
-		buffer[ptr++] = ~checksum + 1; /* two's complement checksum */
-		checksum = chk_init;
-	}
-};
 
 template <typename Interface_t, typename Timer_t>
 class ux_communication_ctrl {
@@ -91,17 +44,23 @@ public:
 		error     = 8,
 	};
 
-
+	struct StatusData_t {
+		uint16_t position;
+		//TODO velocity
+		uint16_t current;
+		uint16_t voltage_back_emf;
+		uint16_t voltage_supply;
+		uint16_t temperature;
+	};
 
 private:
 
 	const uint8_t                syncbyte = 0xff;
 
-	uint8_t                      recv_buffer = 0;
-	uint8_t                      recv_checksum = 0;
-
-	sendbuffer<Interface_t, 16>  msg;
+	recvbuffer<Interface_t, 32>  recv_msg;
+	sendbuffer<Interface_t, 16>  send_msg;
 	uint8_t                      motor_id;
+	StatusData_t                 status_data;
 
 	/* motor related */
 	pwm_t                        target_pwm = {0, false};
@@ -115,9 +74,10 @@ private:
 	uint16_t                     errors = 0;
 	connection_status_t          connection_status = connection_status_t::unknown;
 
+
 public:
 
-	ux_communication_ctrl(uint8_t motor_id) : msg(), motor_id(motor_id) {
+	ux_communication_ctrl(uint8_t motor_id) : send_msg(), motor_id(motor_id), status_data() {
 		assert(motor_id < 12, 6);
 	}
 
@@ -142,7 +102,7 @@ public:
 
 		if (connection_status != connection_status_t::request_pending
 		and connection_status != connection_status_t::responded ) {
-			//send_ping()
+			//send_ping();
 			//send_state_request();
 			send_motor_request();
 			Timer_t:: template setPeriod<Board::systemClock>(500);
@@ -155,7 +115,8 @@ public:
 		return false;
 	}
 
-	connection_status_t get_status(void) const { return connection_status; }
+	connection_status_t get_connection_status(void) const { return connection_status; }
+	StatusData_t const& get_status_data(void) const { return status_data; }
 
 	uint8_t get_id(void) const { return motor_id; }
 
@@ -163,35 +124,28 @@ private:
 
 
 	void send_ping(void) {
-		msg.add_byte(0xE0);
-		msg.add_byte(motor_id);
-		msg.transmit();
+		send_msg.add_byte(0xE0);
+		send_msg.add_byte(motor_id);
+		send_msg.transmit();
 	}
 
 	void send_state_request(void) {
-		msg.add_byte(0xC0);
-		msg.add_byte(motor_id);
-		msg.transmit();
+		send_msg.add_byte(0xC0);
+		send_msg.add_byte(motor_id);
+		send_msg.transmit();
 	}
 
 	void send_motor_request(void) {
 		const uint8_t cmd = target_pwm.dir ? 0xB1 : 0xB0;
-		msg.add_byte(cmd);
-		msg.add_byte(motor_id);
-		msg.add_byte(target_pwm.dc);
-		msg.transmit();
-	}
-
-	bool byte_received(void) {
-		bool result = Interface_t::uart::read(recv_buffer);
-		if (result)
-			recv_checksum += recv_buffer;
-		return result;
+		send_msg.add_byte(cmd);
+		send_msg.add_byte(motor_id);
+		send_msg.add_byte(target_pwm.dc);
+		send_msg.transmit();
 	}
 
 	recv_state_t waiting_for_id()
 	{
-		if (recv_buffer > 127) return error;
+		if (recv_msg.data > 127) return error;
 		switch(cmd_id)
 		{
 			/* responses */
@@ -208,32 +162,31 @@ private:
 		switch(cmd_id)
 		{
 			case data_requested_response:
-				//TODO
-				return verifying;
+				return (recv_msg.bytes_received() < 14 /*excl. checksum*/) ? reading : verifying;
 
 			default: /* unrecognized command */ break;
 		}
-		//assert(false, 4);
+		assert(false, 4);
 		return finished;
 	}
 
-	recv_state_t verify_checksum() { return (recv_checksum == 0) ? pending : error; }
+	recv_state_t verify_checksum() { return (recv_msg.checksum == 0) ? pending : error; }
 
 	recv_state_t search_for_command()
 	{
-		switch(recv_buffer)
+		switch(recv_msg.data)
 		{
 			case 0xE1: /* 1110.0001 */ cmd_id = ping_response;           break;
 			case 0x80: /* 1000.0000 */ cmd_id = data_requested_response; break;
 			default: /* unrecognized command */
 				return error;
-		} /* switch recv_buffer */
+		} /* switch recv.data */
 		return read_id;
 	}
 
 	recv_state_t get_sync_bytes()
 	{
-		if (recv_buffer != syncbyte) {
+		if (recv_msg.data != syncbyte) {
 			sync_state = false;
 			return finished;
 		}
@@ -249,7 +202,11 @@ private:
 
 	recv_state_t process_response()
 	{
-		//TODO
+		status_data.position         = recv_msg.get_word( 4); //TODO velocity
+		status_data.current          = recv_msg.get_word( 6);
+		status_data.voltage_back_emf = recv_msg.get_word( 8);
+		status_data.voltage_supply   = recv_msg.get_word(10);
+		status_data.temperature      = recv_msg.get_word(12);
 		connection_status = connection_status_t::responded;
 		return finished;
 	}
@@ -261,27 +218,27 @@ private:
 		switch(cmd_state)
 		{
 			case syncing:
-				if (not byte_received()) return false;
+				if (not recv_msg.read_byte()) return false;
 				cmd_state = get_sync_bytes();
 				break;
 
 			case awaiting:
-				if (not byte_received()) return false;
+				if (not recv_msg.read_byte()) return false;
 				cmd_state = search_for_command();
 				break;
 
 			case read_id:
-				if (not byte_received()) return false;
+				if (not recv_msg.read_byte()) return false;
 				cmd_state = waiting_for_id();
 				break;
 
 			case reading:
-				if (not byte_received()) return false;
+				if (not recv_msg.read_byte()) return false;
 				cmd_state = waiting_for_data();
 				break;
 
 			case verifying:
-				if (not byte_received()) return false;
+				if (not recv_msg.read_byte()) return false;
 				cmd_state = verify_checksum();
 				break;
 
@@ -292,7 +249,7 @@ private:
 			case finished: /* cleanup, prepare for next message */
 				cmd_id = unrecognized_command;
 				cmd_state = syncing;
-				recv_checksum = 0;
+				recv_msg.reset();
 				assert(sync_state == false, 55);
 				/* anything else todo? */
 				break;
@@ -332,6 +289,10 @@ uint8_t get_motor_id_from_board_id(uint8_t board_id, uint8_t motor_index) {
 
 template <typename InterfaceType, typename TimerType, unsigned BoardID, unsigned NumMotors>
 class MotorCord {
+
+	typedef supreme::ux_communication_ctrl<InterfaceType, TimerType> sensorimotor_t;
+	typedef std::array<sensorimotor_t,NumMotors> motorarray_t;
+
 public:
 
 	typedef std::array<scdata_t, 12> target_voltage_t;
@@ -373,15 +334,17 @@ public:
 		return state;
 	}
 
+	motorarray_t const& get_motors(void) const { return motors; }
+
 private:
 
 	unsigned idx = 0;
 	State_t state = done; // prepare_motor_commands() must be called first
 
-	typedef supreme::ux_communication_ctrl<InterfaceType, TimerType> sensorimotor_t;
-	std::array<sensorimotor_t,NumMotors> motors = { get_motor_id_from_board_id(BoardID, 0)
-	                                              , get_motor_id_from_board_id(BoardID, 1)
-	                                              , get_motor_id_from_board_id(BoardID, 2) };
+
+	motorarray_t motors = { get_motor_id_from_board_id(BoardID, 0)
+	                      , get_motor_id_from_board_id(BoardID, 1)
+	                      , get_motor_id_from_board_id(BoardID, 2) };
 
 	target_voltage_t const& voltages;
 };

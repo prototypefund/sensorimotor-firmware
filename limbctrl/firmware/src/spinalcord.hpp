@@ -1,0 +1,66 @@
+#ifndef SUPREME_LIMBCTRL_SPINALCORD_HPP
+#define SUPREME_LIMBCTRL_SPINALCORD_HPP
+
+#include <xpcc/architecture/platform.hpp>
+#include <src/transceivebuffer.hpp>
+
+using namespace Board;
+
+namespace supreme {
+
+
+template <typename Interface, uint8_t BufferSize, uint8_t SyncByte, typename Motorcord_t, unsigned BoardID>
+class SpinalCord : public sendbuffer<Interface, BufferSize, SyncByte> {
+
+	uint8_t buffer[BufferSize];
+	Motorcord_t const& motorcord;
+
+public:
+
+	SpinalCord(Motorcord_t const& motorcord)
+	: sendbuffer<Interface, BufferSize, SyncByte>()
+	, motorcord(motorcord)
+	{}
+
+	void prepare(uint8_t min_id,
+	             uint8_t last_min_id,
+	             uint8_t board_list,
+	             uint8_t packets,
+	             uint8_t errors,
+	             uint8_t cycles)
+	{
+		this->add_byte(BoardID);
+
+		/*temporary testing data*/
+		this->add_byte(min_id);
+		this->add_byte(last_min_id);
+		this->add_byte(board_list);
+		this->add_byte(packets);
+		this->add_byte(errors);
+		this->add_byte(cycles);
+		this->add_byte(0);
+
+		auto const& motors = motorcord.get_motors();
+		for (auto const& m: motors) {
+			this->add_byte(m.get_id());
+			this->add_byte(m.get_connection_status());
+			auto const& s = m.get_status_data();
+			this->add_word(s.position);
+			this->add_word(s.current);
+			this->add_word(s.voltage_back_emf);
+			this->add_word(s.voltage_supply);
+			this->add_word(s.temperature);
+			//TODO add velocity and target voltage
+		}
+		/*reserved*/
+		for (unsigned i = this->size(); i < BufferSize-1; ++i)
+			this->add_byte(0xEE);
+		/* checksum is added automagically */
+		assert(this->size() == BufferSize-1,19);
+	}
+
+};
+
+} /* namespace supreme */
+
+#endif /* SUPREME_LIMBCTRL_SPINALCORD_HPP */
