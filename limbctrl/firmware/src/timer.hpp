@@ -24,4 +24,13 @@ reset_and_start_timer()
 	TimerType::start();
 }
 
+template <typename TimerType>
+static void
+setperiod_and_restart_timer(unsigned Period)
+{
+	TimerType::template setPeriod<Board::systemClock>(Period);
+	TimerType::applyAndReset();
+	TimerType::start();
+}
+
 #endif /* SUPREME_LIMBCTRL_TIMER_HPP */
