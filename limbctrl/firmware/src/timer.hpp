@@ -4,6 +4,8 @@
 #include <xpcc/architecture/platform.hpp>
 
 
+//TODO make a timerclass of that
+
 template <typename TimerType, unsigned Period>
 static void
 init_timer()
@@ -32,5 +34,20 @@ setperiod_and_restart_timer(unsigned Period)
 	TimerType::applyAndReset();
 	TimerType::start();
 }
+
+// template <typename TimerType>
+// static bool
+// is_timed_out()
+// {
+// 	/* TODO check if the return of setperiod == getvalue for timeout*/
+// 	// or pull timer status register
+// 	/* check for update event and do the ackknowledge here*/
+//
+// 	if ((TIM1->SR & 0x0001) != 0) {
+//
+// 	    TIM1->SR &= ~(1<<0);
+//
+// }
+
 
 #endif /* SUPREME_LIMBCTRL_TIMER_HPP */

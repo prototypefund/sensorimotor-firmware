@@ -1,6 +1,7 @@
 #ifndef SUPREME_LIMBCTRL_TRANSCEIVEBUFFER_HPP
 #define SUPREME_LIMBCTRL_TRANSCEIVEBUFFER_HPP
 
+#include <array>
 #include <xpcc/architecture/platform.hpp>
 
 using namespace Board;
@@ -12,9 +13,10 @@ template <typename Interface, unsigned N, uint8_t SyncByte = 0xff>
 class sendbuffer {
 	static const unsigned NumSyncBytes = 2;
 	static constexpr uint8_t chk_init = (uint8_t) (NumSyncBytes*SyncByte);
-	uint16_t  ptr = NumSyncBytes;
-	uint8_t   buffer[N];
-	uint8_t   checksum = chk_init;
+	typedef std::array<uint8_t, N> Buffer_t;
+	uint16_t ptr = NumSyncBytes;
+	Buffer_t buffer;
+	uint8_t  checksum = chk_init;
 
 public:
 	sendbuffer()
@@ -41,7 +43,7 @@ public:
 		if (ptr == NumSyncBytes) return;
 		add_checksum();
 		Interface::send_mode();
-		Interface::uart::write(buffer, ptr);
+		Interface::uart::write(buffer.data(), ptr);
 		Interface::uart::flushWriteBuffer();
 		Interface::recv_mode();
 		/* prepare next */
@@ -49,6 +51,7 @@ public:
 	}
 
 	uint16_t size(void) const { return ptr; }
+	Buffer_t const& get(void) const { return buffer; }
 
 private:
 	void add_checksum() {
@@ -61,14 +64,18 @@ private:
 template <typename Interface_t, unsigned N>
 class recvbuffer {
 public:
-	uint8_t   buffer[N];
-	uint8_t   checksum;
-	uint8_t   data;
-	unsigned  ptr = 0;
+	typedef std::array<uint8_t, N> Buffer_t;
+
+	Buffer_t buffer;   // TODO make these vars private
+	uint8_t  checksum;
+	uint8_t  data;
+	unsigned ptr = 0;
 
 	recvbuffer() {
-		memset(buffer, 0, N);
+		buffer.fill(0);
 	}
+
+	Buffer_t const& get(void) const { return buffer; }
 
 	bool read_byte(void) {
 		bool result = Interface_t::uart::read(data);

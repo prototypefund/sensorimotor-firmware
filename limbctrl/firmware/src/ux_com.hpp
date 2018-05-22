@@ -57,8 +57,11 @@ private:
 
 	const uint8_t                syncbyte = 0xff;
 
-	recvbuffer<Interface_t, 32>  recv_msg;
-	sendbuffer<Interface_t, 16>  send_msg;
+	typedef recvbuffer<Interface_t, 32> RecvBuffer_t;
+	typedef sendbuffer<Interface_t, 16> SendBuffer_t;
+
+	RecvBuffer_t                 recv_msg;
+	SendBuffer_t                 send_msg;
 	uint8_t                      motor_id;
 	StatusData_t                 status_data;
 
@@ -78,7 +81,7 @@ private:
 public:
 
 	ux_communication_ctrl(uint8_t motor_id) : send_msg(), motor_id(motor_id), status_data() {
-		assert(motor_id < 12, 6);
+		assert(motor_id < 127, 6);
 	}
 
 	void set_target_voltage(scdata_t target_voltage) {

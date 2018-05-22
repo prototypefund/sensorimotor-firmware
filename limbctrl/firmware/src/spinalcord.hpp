@@ -12,7 +12,6 @@ namespace supreme {
 template <typename Interface, uint8_t BufferSize, uint8_t SyncByte, typename Motorcord_t, unsigned BoardID>
 class SpinalCord : public sendbuffer<Interface, BufferSize, SyncByte> {
 
-	uint8_t buffer[BufferSize];
 	Motorcord_t const& motorcord;
 
 public:
@@ -59,6 +58,52 @@ public:
 		assert(this->size() == BufferSize-1,19);
 	}
 
+};
+
+template <typename Interface>
+class SpinalCordFull {
+	// std::array<uint8_t,BufferSize> buffer;
+	// unsigned ptr;
+
+	bool transmission_pending = false;
+
+public:
+
+	SpinalCordFull() {
+		// reset();
+	}
+
+	// void reset(void) {
+	// 	buffer.fill(0);
+	// 	ptr = 0;
+	// }
+
+	// template <typename Buffer_t>
+	// void add(Buffer_t const& append_buf)
+	// {
+	// 	const unsigned size = append_buf.size();
+	// 	assert((ptr + size) < BufferSize, 21);
+	// 	for (unsigned i = 0; i < size; ++i)
+	// 		buffer[ptr++] = append_buf[i];
+	// }
+
+	template <typename Buffer_t>
+	void start_transmission(Buffer_t const& buffer)
+	{
+		while(transmission_pending);
+		Interface::send_mode();
+		Interface::uart::write(buffer.data(), buffer.size());
+		transmission_pending = true;
+	}
+
+	void check_transmission_finished(void)
+	{
+		if (transmission_pending && Interface::uart::isWriteFinished()) {
+			Interface::recv_mode();
+			transmission_pending = false;
+		}
+		//TODO transceiver disable could be done with interrupt
+	}
 };
 
 } /* namespace supreme */

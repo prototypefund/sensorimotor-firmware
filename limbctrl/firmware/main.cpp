@@ -18,37 +18,38 @@ using MotorTimer = xpcc::stm32::Timer5;
 
 enum CycleState {
 	initializing   = 0,
-	synchronizing  = 1,
-	synchronized   = 2,
-	receiving      = 3,
-	transmitting   = 4,
-	writing_motors = 5,
-	idle           = 6,
-	duplicate_id   = 7,
+	synchronizing,
+	synchronized,
+	receiving,
+	transmitting,
+	receiving_2,
+	writing_motors,
+	idle,
+	duplicate_id,
 };
 
 /* 3 Mbaud/s = 3.000.000 baud/s = 300.000 byte/s
    with 10 bit per byte (8N1)
    -> 3.34 us per byte
-
-	/// synchronizing procedure ///
-	min_id = board_id // we must assume, that we are the first board, until we know better.
-	re-sync if min_id has changed:
-		setperiod ( frametime_us - min_id * slottime_us)
 */
+constexpr uint8_t board_id = 4;    //TODO read from EEPROM
 
 constexpr unsigned byte_transmission_time_us = 10; //TODO
 constexpr unsigned deadtime_us = 20;
 constexpr unsigned bytes_per_slot = 64;
 constexpr unsigned slottime_us = bytes_per_slot * byte_transmission_time_us + deadtime_us;
 
+constexpr uint8_t trunk_id = 4;
 constexpr uint8_t syncbyte = 0x55;
-constexpr uint8_t board_id = 1;    //TODO read from EEPROM
-constexpr uint8_t max_id = 8;
+constexpr uint8_t max_id = 7;
 constexpr unsigned frametime_us = 10000; /* 10.000 us = 10 ms = 100 Hz */
-constexpr unsigned local_delay_us = board_id * slottime_us;
+constexpr unsigned local_delay_us = board_id * slottime_us + deadtime_us;
 
 constexpr unsigned motortime_us = frametime_us - 2000;
+
+constexpr bool is_trunk_controller = (board_id == trunk_id);
+
+// constexpr unsigned full_size = bytes_per_slot * (max_id+1);
 
 static_assert(slottime_us > 0);
 static_assert(local_delay_us > 0);
@@ -67,6 +68,14 @@ static_assert(local_delay_us > 0);
 	    + trigger ADC for local sensors
 */
 
+void signal_leading(uint8_t ref_id) {
+	if (ref_id == board_id) // we are leading
+		led_ylw::set();
+	else
+		led_ylw::reset();
+}
+
+
 /* variables used by timer ISRs */
 volatile bool rx_timed_out = false;
 volatile bool sendnow      = false;
@@ -74,27 +83,30 @@ volatile bool syncnow      = false;
 volatile bool write_motors = false;
 
 
+void apply_global_sync(uint8_t ref_id) {
+	unsigned synctime_us = frametime_us - ref_id * slottime_us;
+	setperiod_and_restart_timer<GlobalSync>(synctime_us);
+}
+
+bool we_are(uint8_t ref_id) { return board_id == ref_id; }
+
 int
 main()
 {
 	Board::initialize();
 
-	init_timer<GlobalSync, frametime_us*2>();
+	init_timer<GlobalSync, frametime_us*10>();
 	init_timer<LocalDelay, local_delay_us>();
-	init_timer<RxTimeout , slottime_us   >(); //TODO move to communication
 	init_timer<MotorTimer, motortime_us  >();
 
 	CycleState state = initializing;
 
-	uint8_t min_id = board_id; // assume, until we know better
+	uint8_t leading_id = board_id; // assume, until we know better
 	uint8_t last_min_id = 255;
-
-	unsigned synctime_us = frametime_us;
 	uint8_t board_list = 0;
 	uint8_t last_board_list = 0;
 
 	bool timer_started = false;
-
 
 	/* carrier for voltage setpoints, TODO integrate in SC-Data structure */
 	typedef supreme::MotorCord<rs485_motorcord, MotorTimer, board_id, 3> MotorCord_t;
@@ -106,106 +118,134 @@ main()
 	MotorCord_t motorcord(target_voltages);
 	SpinalCord_t spinalcord(motorcord);
 
-	supreme::CommunicationController<RxTimeout, syncbyte, max_id, bytes_per_slot> com;
+	supreme::CommunicationController<RxTimeout, syncbyte, max_id, bytes_per_slot, slottime_us> com(&rx_timed_out);
+
+	SpinalCordFull<rs485_external> sc_full;
 
 	uint8_t cycles = 0;
 
+
 	while (1)
 	{
+
+		/* other stuff */
+		sc_full.check_transmission_finished();
+
 		switch(state)
 		{
 		case initializing: /* start first frame and try to (re-)sync */
-			xpcc::delayMilliseconds(board_id*2);
-			GlobalSync::start();
 			state = synchronizing;
-			min_id = board_id;//max_id;
-			led_red::set();
+			GlobalSync::pause();
+			setperiod_and_restart_timer<GlobalSync>(10*frametime_us);
+			leading_id = board_id;
+			led_red::reset();
+			led_ylw::reset();
 			break;
 
 		case synchronizing: /* searching for minimal id */
-			if (com.read_slot(rx_timed_out))
+			led_ylw::set();
+			if (com.read_slot())
 			{
+				led_red::set();
 				uint8_t slot_id = com.get_received_id();
-				if (slot_id < min_id) { // found new board
-					min_id = slot_id;
-					reset_and_start_timer<GlobalSync>();
-				}
 
-				if (slot_id == board_id) // someone is using our id!
-					state = duplicate_id;
-			}
-			// note: state is set to [synchronized] by global sync ISR
-			if (syncnow) {
-				state = synchronized;
+				/* sync to the first board you can find */
+				apply_global_sync(slot_id);
+				leading_id = slot_id;
+				while (!syncnow) {} // note: syncnow is set by GlobalSync ISR
+
 				syncnow = false;
+				state = synchronized;
 			}
+			else {
+				if (syncnow) { // tried enough finding a leading board
+					syncnow = false;
+					apply_global_sync(board_id);
+					state = synchronized;
+				};
+			}
+
 			break;
 
 		case synchronized:
+			led_red::set();
+			led_ylw::reset();
+			signal_leading(leading_id);
 			++cycles;
-			if (min_id < last_min_id) {
-				// we got a new min_id, timer must by changed
-				synctime_us = frametime_us - min_id * slottime_us;
-				GlobalSync::setPeriod<Board::systemClock>(synctime_us, /*autoapply=*/ true);
-				last_min_id = min_id; // remember last min_id before resetting
-				if (last_min_id == board_id) // we are leading
-					led_ylw::set();
-				else
-					led_ylw::reset();
-			}
-			else if (min_id > last_min_id) { // lost master, trigger re-sync!
-				state = initializing;
-				break;
-			}
-			state = (board_id == 0) ? transmitting : receiving;
-			min_id = board_id; // reset
+
+			state = receiving;
+			leading_id = board_id; // reset
 			last_board_list = board_list;
 			board_list = 1 << board_id;
 			timer_started = false;
 			break;
 
 		case receiving:
-			if (com.read_slot(rx_timed_out))
+			if (com.read_slot())
 			{
 				uint8_t slot_id = com.get_received_id();
-				//TODO check with expected boards, from last_board_list, resync on deviation
-
 				board_list |= 1 << slot_id;
 
-				if (!timer_started and slot_id >= last_min_id) // we found the former leading board
+				if (slot_id < leading_id)
+					leading_id = slot_id;
+
+				/* we found the leading board */
+				if (!we_are(leading_id) and !timer_started and slot_id == leading_id)
 				{
-					reset_and_start_timer<GlobalSync>();
+					apply_global_sync(leading_id);
 					timer_started = true;
 				}
 
-				if (slot_id < min_id)
-					min_id = slot_id;
-
-				if (slot_id == board_id)
+				if (slot_id == board_id) // someone is using our id!
 					state = duplicate_id;
 
-				//put data to spinalcord array here
+				if (is_trunk_controller)
+					sc_full.start_transmission(com.get());
 			}
-			if (sendnow)
+
+			if (sendnow) {
+				sendnow = false;
 				state = transmitting;
+			}
+
+			break;
+
+		case transmitting:
+			led_red::reset();
+			spinalcord.prepare( leading_id, last_min_id, last_board_list,
+			                     com.packets, com.errors, cycles );
+			spinalcord.transmit();
+			if (we_are(leading_id)) { // we are the leading board must sync to ourselves
+				apply_global_sync(board_id);
+			 	timer_started = true;
+			}
+
+			if (is_trunk_controller)
+				sc_full.start_transmission(spinalcord.get());
+
+			state = receiving_2;
+			break;
+
+		case receiving_2:
+
+			if (!timer_started) { // something went wrong
+				state = initializing;
+			}
+
+			if (com.read_slot())
+			{
+				uint8_t slot_id = com.get_received_id();
+				board_list |= 1 << slot_id;
+
+				if (is_trunk_controller)
+					sc_full.start_transmission(com.get());
+			}
 
 			if (write_motors) {
 				state = writing_motors;
 				write_motors = false;
 				motorcord.prepare();
 			}
-			break;
-
-		case transmitting:
-			spinalcord.prepare( min_id, last_min_id, last_board_list,
-			                     com.packets, com.errors, cycles );
-			spinalcord.transmit();
-			if (min_id == board_id) { // it seems that we are the leading board
-				reset_and_start_timer<GlobalSync>();
-				timer_started = true;
-			}
-			state = receiving;
-			sendnow = false;
 			break;
 
 		case writing_motors:
@@ -246,7 +286,6 @@ XPCC_ISR(TIM2)
 	GlobalSync::acknowledgeInterruptFlags(GlobalSync::InterruptFlag::Update);
 	GlobalSync::applyAndReset();
 	GlobalSync::pause();
-	led_red::toggle();
 	syncnow = true;
 }
 
@@ -264,6 +303,8 @@ XPCC_ISR(TIM4)
 	RxTimeout::applyAndReset();
 	RxTimeout::pause();
 	rx_timed_out = true;
+
+	//TODO remove reset here, to check for timed out from elsewhere, just pause... and get rid of the additional bools, only pause the timer here. do not ackknowledge here. do the ack in the "is_timed_out()" method
 }
 
 XPCC_ISR(TIM5)

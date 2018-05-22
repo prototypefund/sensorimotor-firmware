@@ -1,6 +1,7 @@
 #ifndef SUPREME_LIMBCTRL_COMMUNICATION_HPP
 #define SUPREME_LIMBCTRL_COMMUNICATION_HPP
 
+#include <array>
 #include <xpcc/architecture/platform.hpp>
 
 using namespace Board;
@@ -9,7 +10,7 @@ namespace supreme {
 
 /* Handles communication with other limbs via spinal cord
 */
-template <typename TimerType, uint8_t SyncByte, uint8_t MaxID, unsigned BytesPerSlot>
+template <typename TimerType, uint8_t SyncByte, uint8_t MaxID, unsigned BytesPerSlot, unsigned SlotTime_us>
 class CommunicationController {
 public:
 
@@ -34,25 +35,41 @@ public:
 	uint8_t received_id = 255;
 
 	uint8_t data = 0;
-	uint8_t buffer[BytesPerSlot];
+	typedef std::array<uint8_t, BytesPerSlot> Buffer_t;
+	Buffer_t buffer;
 
 	bool sync_state = false;
+	volatile bool *rx_timed_out;
 
-	CommunicationController()
+	CommunicationController(volatile bool *timed_out)
+	: rx_timed_out(timed_out)
 	{
-		memset(buffer, 0, BytesPerSlot);
+		buffer.fill(0);
+		eat();
+		init_timer<TimerType, SlotTime_us>();
+		*rx_timed_out = false;
+		assert((*timed_out == false),3);
 	}
 
+	Buffer_t const& get(void) const { return buffer; }
+
 	recv_state_t reset_buffer() {
-		memset(buffer, 0, bytecount); /* clear what has been written so far */
+		buffer.fill(0); /* TODO only clear what has been written so far */
 		bytecount = 0;
+		checksum = 0;
 		return recv_state_t::synchronizing;
+	}
+
+	void eat() {
+		uint8_t dump;
+		while(rs485_spinalcord::uart::read(dump));
 	}
 
 	bool byte_received(void) {
 		bool result = rs485_spinalcord::uart::read(data);
 		if (result) {
 			checksum += data;
+			assert(bytecount < BytesPerSlot, 16);
 			buffer[bytecount++] = data;
 		}
 		return result;
@@ -71,7 +88,7 @@ public:
 	{
 		if (data != SyncByte) {
 			sync_state = false;
-			return recv_state_t::initializing;
+			return recv_state_t::done;
 		}
 
 		if (sync_state) {
@@ -97,20 +114,24 @@ public:
 
 	uint8_t get_received_id() const { return received_id; }
 
-	bool read_slot(bool rx_timed_out /*TODO can we ask the timer?*/)
+	bool read_slot(void)
 	{
 		bool result = false;
 
-		if (rx_timed_out) {
-			state = recv_state_t::initializing;
+		if (*rx_timed_out) {
+			state = recv_state_t::done;
 			++errors;
-			rx_timed_out = false;
+			*rx_timed_out = false;
 		}
 
 		switch(state)
 		{
 			case initializing:
+				sync_state = false;
 				state = reset_buffer();
+				*rx_timed_out = false;
+				TimerType::applyAndReset();
+				TimerType::pause();
 				/* fall through */
 
 			case synchronizing:
@@ -137,6 +158,7 @@ public:
 
 			case done:
 			default:
+				TimerType::applyAndReset();
 				TimerType::pause(); // stop timer before leaving
 				state = recv_state_t::initializing; // start over again
 				break;
