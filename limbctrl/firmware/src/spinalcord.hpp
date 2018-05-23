@@ -3,6 +3,7 @@
 
 #include <xpcc/architecture/platform.hpp>
 #include <src/transceivebuffer.hpp>
+#include <src/transparent_data.hpp>
 
 using namespace Board;
 
@@ -62,30 +63,10 @@ public:
 
 template <typename Interface>
 class SpinalCordFull {
-	// std::array<uint8_t,BufferSize> buffer;
-	// unsigned ptr;
 
 	bool transmission_pending = false;
 
 public:
-
-	SpinalCordFull() {
-		// reset();
-	}
-
-	// void reset(void) {
-	// 	buffer.fill(0);
-	// 	ptr = 0;
-	// }
-
-	// template <typename Buffer_t>
-	// void add(Buffer_t const& append_buf)
-	// {
-	// 	const unsigned size = append_buf.size();
-	// 	assert((ptr + size) < BufferSize, 21);
-	// 	for (unsigned i = 0; i < size; ++i)
-	// 		buffer[ptr++] = append_buf[i];
-	// }
 
 	template <typename Buffer_t>
 	void start_transmission(Buffer_t const& buffer)
@@ -104,7 +85,9 @@ public:
 		}
 		//TODO transceiver disable could be done with interrupt
 	}
+
 };
+
 
 } /* namespace supreme */
 

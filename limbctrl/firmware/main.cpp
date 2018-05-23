@@ -32,7 +32,7 @@ enum CycleState {
    with 10 bit per byte (8N1)
    -> 3.34 us per byte
 */
-constexpr uint8_t board_id = 4;    //TODO read from EEPROM
+constexpr uint8_t board_id = 1;    //TODO read from EEPROM
 
 constexpr unsigned byte_transmission_time_us = 10; //TODO
 constexpr unsigned deadtime_us = 20;
@@ -102,7 +102,7 @@ main()
 	CycleState state = initializing;
 
 	uint8_t leading_id = board_id; // assume, until we know better
-	uint8_t last_min_id = 255;
+	uint8_t transparent_mode = 0;
 	uint8_t board_list = 0;
 	uint8_t last_board_list = 0;
 
@@ -113,14 +113,17 @@ main()
 	typedef supreme::SpinalCord<rs485_spinalcord, bytes_per_slot, syncbyte, MotorCord_t, board_id> SpinalCord_t;
 
 	MotorCord_t::target_voltage_t target_voltages;
-	target_voltages.fill(float_to_sc(0.1));
+	target_voltages.fill(float_to_sc(0.0));
 
 	MotorCord_t motorcord(target_voltages);
 	SpinalCord_t spinalcord(motorcord);
 
-	supreme::CommunicationController<RxTimeout, syncbyte, max_id, bytes_per_slot, slottime_us> com(&rx_timed_out);
+	supreme::CommunicationController<RxTimeout, syncbyte, max_id, bytes_per_slot, slottime_us, MotorCord_t::target_voltage_t> com(&rx_timed_out, target_voltages);
 
 	SpinalCordFull<rs485_external> sc_full;
+
+	typedef TransparentData<rs485_external, rs485_spinalcord> TransparentData_t;
+	TransparentData_t transparent_data;
 
 	uint8_t cycles = 0;
 
@@ -212,7 +215,7 @@ main()
 
 		case transmitting:
 			led_red::reset();
-			spinalcord.prepare( leading_id, last_min_id, last_board_list,
+			spinalcord.prepare( leading_id, transparent_mode, last_board_list,
 			                     com.packets, com.errors, cycles );
 			spinalcord.transmit();
 			if (we_are(leading_id)) { // we are the leading board must sync to ourselves
@@ -239,6 +242,11 @@ main()
 
 				if (is_trunk_controller)
 					sc_full.start_transmission(com.get());
+			}
+
+			if (is_trunk_controller && transparent_data.read()) {
+				transparent_data.write();
+				++transparent_mode;
 			}
 
 			if (write_motors) {

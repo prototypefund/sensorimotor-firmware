@@ -55,10 +55,10 @@ public:
 
 private:
 
-	const uint8_t                syncbyte = 0xff;
+	static const uint8_t syncbyte = 0xff;
 
-	typedef recvbuffer<Interface_t, 32> RecvBuffer_t;
-	typedef sendbuffer<Interface_t, 16> SendBuffer_t;
+	typedef recvbuffer<Interface_t, 32          > RecvBuffer_t;
+	typedef sendbuffer<Interface_t, 16, syncbyte> SendBuffer_t;
 
 	RecvBuffer_t                 recv_msg;
 	SendBuffer_t                 send_msg;
@@ -308,17 +308,22 @@ public:
 	};
 
 
-	MotorCord(target_voltage_t const& voltages)
+	MotorCord(target_voltage_t& voltages)
 	: voltages(voltages)
 	{
 		// TODO ping motors...and check if motors are connected correctly.
 	}
 
 	void prepare(void) {
-		for (auto& m: motors)
-			m.set_target_voltage(voltages[m.get_id()]);
+		for (auto& m: motors) {
+			if (m.get_id() < 12)
+				m.set_target_voltage(voltages[m.get_id()]);
+			else
+				m.set_target_voltage(0);
+		}
 		idx = 0;
 		state = ready;
+		voltages.fill(0); // clear target voltages;
 	}
 
 	/* after preparing motor commands,
@@ -349,7 +354,7 @@ private:
 	                      , get_motor_id_from_board_id(BoardID, 1)
 	                      , get_motor_id_from_board_id(BoardID, 2) };
 
-	target_voltage_t const& voltages;
+	target_voltage_t& voltages;
 };
 
 } /* namespace supreme */

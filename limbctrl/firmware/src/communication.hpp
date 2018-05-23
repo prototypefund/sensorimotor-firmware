@@ -10,15 +10,18 @@ namespace supreme {
 
 /* Handles communication with other limbs via spinal cord
 */
-template <typename TimerType, uint8_t SyncByte, uint8_t MaxID, unsigned BytesPerSlot, unsigned SlotTime_us>
+template <typename TimerType, uint8_t SyncByte, uint8_t MaxID, unsigned BytesPerSlot, unsigned SlotTime_us, typename target_voltage_t>
 class CommunicationController {
 public:
+
+	static const unsigned TranspDataSize = 28;
 
 	enum recv_state_t {
 		initializing = 0,
 		synchronizing,
 		awaiting_id,
-		reading_data,
+		reading_spinal_data,
+		reading_transp_data,
 		validating,
 		success,
 		error,
@@ -41,9 +44,15 @@ public:
 	bool sync_state = false;
 	volatile bool *rx_timed_out;
 
-	CommunicationController(volatile bool *timed_out)
-	: rx_timed_out(timed_out)
+	target_voltage_t& target_voltages;
+	bool transp_mode = false;
+
+	CommunicationController(volatile bool *timed_out, target_voltage_t& target_voltages)
+	: buffer()
+	, rx_timed_out(timed_out)
+	, target_voltages(target_voltages)
 	{
+		static_assert(TranspDataSize < BytesPerSlot);
 		buffer.fill(0);
 		eat();
 		init_timer<TimerType, SlotTime_us>();
@@ -81,7 +90,7 @@ public:
 			received_id = buffer[2];
 			return success;
 		}
-		return error;
+		return recv_state_t::error;
 	}
 
 	recv_state_t get_sync_bytes()
@@ -104,12 +113,24 @@ public:
 
 	recv_state_t get_id()
 	{	/* check for valid id */
-		return (data < MaxID) ? reading_data : error;
+		if (data < MaxID) {
+			return reading_spinal_data;
+		}
+		else if (data == 0xff) {
+			transp_mode = true;
+			return reading_transp_data;
+		}
+		else return error;
 	}
 
-	recv_state_t get_data()
+	recv_state_t get_spinal_data()
 	{
-		return (bytecount < BytesPerSlot) ? reading_data : validating;
+		return (bytecount < BytesPerSlot) ? reading_spinal_data : validating;
+	}
+
+	recv_state_t get_transp_data()
+	{
+		return (bytecount < TranspDataSize) ? reading_transp_data : validating;
 	}
 
 	uint8_t get_received_id() const { return received_id; }
@@ -130,30 +151,27 @@ public:
 				sync_state = false;
 				state = reset_buffer();
 				*rx_timed_out = false;
+				transp_mode = false;
 				TimerType::applyAndReset();
 				TimerType::pause();
 				/* fall through */
 
-			case synchronizing:
-				if (byte_received())
-					state = get_sync_bytes();
-				break;
+			case synchronizing      : if (byte_received()) state = get_sync_bytes();   break;
+			case awaiting_id        : if (byte_received()) state = get_id();           break;
+			case reading_spinal_data: if (byte_received()) state = get_spinal_data();  break;
+			case reading_transp_data: if (byte_received()) state = get_transp_data();  break;
+			case validating         :                      state = verify_checksum();  break;
 
-			case awaiting_id:
-				if (byte_received())
-					state = get_id();
+			case success:
+				if (transp_mode) {
+					result = false; // trans data is not visible outside
+					copy_transparent_data();
+				} else {
+					result = true;
+				}
+				state = recv_state_t::done;
+				++packets;
 				break;
-
-			case reading_data:
-				if (byte_received())
-					state = get_data();
-				break;
-
-			case validating:
-				state = verify_checksum();
-				break;
-
-			case success: result = true;  state = recv_state_t::done; ++packets; break;
 			case error:   result = false; state = recv_state_t::done; ++errors;  break;
 
 			case done:
@@ -166,6 +184,13 @@ public:
 		} // switch(state)
 
 		return result; // return true of valid slot could be read
+	}
+
+	void copy_transparent_data(void) {
+		for (unsigned i = 0; i < 12; ++i) {
+			unsigned offset = 3; // 2 x sync + id
+			target_voltages[i] = (uint16_t) (buffer[2*i+offset] << 8 | buffer[2*i+1+offset]);
+		}
 	}
 
 };

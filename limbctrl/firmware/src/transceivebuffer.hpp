@@ -9,7 +9,7 @@ using namespace Board;
 namespace supreme {
 
 
-template <typename Interface, unsigned N, uint8_t SyncByte = 0xff>
+template <typename Interface, unsigned N, uint8_t SyncByte>
 class sendbuffer {
 	static const unsigned NumSyncBytes = 2;
 	static constexpr uint8_t chk_init = (uint8_t) (NumSyncBytes*SyncByte);
@@ -20,6 +20,7 @@ class sendbuffer {
 
 public:
 	sendbuffer()
+	: buffer()
 	{
 		static_assert(N > NumSyncBytes, "Invalid buffer size.");
 		for (uint8_t i = 0; i < NumSyncBytes; ++i)
@@ -71,7 +72,7 @@ public:
 	uint8_t  data;
 	unsigned ptr = 0;
 
-	recvbuffer() {
+	recvbuffer() : buffer() {
 		buffer.fill(0);
 	}
 
