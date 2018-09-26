@@ -2,7 +2,7 @@ DEVICE     = atmega328p
 CLOCK      = 16000000
 PROGRAMMER = -c arduino -P /dev/ttyUSB0 -b 19200 
 OBJECTS    = main.o
-FUSES      = -U lfuse:w:0xCF:m -U hfuse:w:0xD9:m -U efuse:w:0x06:m
+FUSES      = -U lfuse:w:0xCF:m -U hfuse:w:0xD9:m -U efuse:w:0xFE:m
 
 #        SUT0-----+ +-----CKSEL3
 #        SUT1----+| |+----CKSEL2
