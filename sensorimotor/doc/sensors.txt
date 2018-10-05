@@ -1,0 +1,21 @@
+
+Measuring Supply Voltage
+------------------------
+
+Voltage Divider 5k1 to 15k
+
+(+)----[ 15k ]----+----[ 5k1 ]-----|
+                  |
+                  +---- ADC U_Bat
+
+
+Max. input voltage when 3V3 is measured at ADC:
+Vmax = 5k1 / (5k1 + 15k) * 3V3 = 13V (13,005882353)
+
+-> Vin = 13V results in Vadc = 3V3
+
+13V  == 1023
+ 6V5 == 511
+ 0V  == 0
+
+
