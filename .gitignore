@@ -1,5 +1,5 @@
 *.o
 *.hex
 *.elf
-*/.sconsign.dblite
+.sconsign.dblite
 
