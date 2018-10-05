@@ -1,9 +1,9 @@
 /*
 
-   +----------------------------+
-   | 2017, Supreme Machines GbR |
-   | Sensorimotor               |
-   +----------------------------+
+   +------------------------+
+   | 2017, Supreme Machines |
+   | Sensorimotor           |
+   +------------------------+
 
 */
 
@@ -24,8 +24,8 @@ int main()
 
 	led::yellow::setOutput(); // yellow
 	led::red::setOutput(); // red
-	D3::setOutput();     // drive enable RS485
-	D3::reset();
+	rs485::drive_enable::setOutput();     // drive enable RS485
+	rs485::drive_enable::reset();
 
 	supreme::motor_ifx9201sg  motor;
 
