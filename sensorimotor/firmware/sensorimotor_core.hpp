@@ -3,7 +3,6 @@
 
 #include <xpcc/architecture/platform.hpp>
 
-#include <constants.hpp>
 #include <motor_ifx9201sg.hpp>
 #include <adc.hpp>
 #include <temperature.hpp>
@@ -74,30 +73,6 @@ public:
 		if (watchcat < 100) watchcat++;
 		else enabled = false;
 
-		//const uint16_t value = sensors.position.get_value();
-
-		/* simple test controller, toggles between max bounds */
-		/*if (dir_left && value < lower_bound) {
-			dir_left = false;
-			motor.toggle_direction();
-		} else if (!dir_left && value > upper_bound){
-			dir_left = true;
-			motor.toggle_direction();
-		}*/
-
-		/** release_mode */
-		/*if (release_mode) {
-			if (last_position < value) {
-				set_dir(false);
-				set_pwm(20);
-			} else if (last_position > value) {
-				set_dir(true);
-				set_pwm(20);
-			} else
-				set_pwm(0);
-		}
-		last_position = value;
-		*/
 	}
 
 	void set_target_pwm(uint8_t pwm) { if (pwm <= 128  ) target.pwm = pwm; }
