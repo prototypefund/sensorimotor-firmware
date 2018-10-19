@@ -1,6 +1,11 @@
-/*---------------------+
-| Supreme Sensorimotor |
-+---------------------*/
+/*---------------------------------+
+ | Supreme Machines                |
+ | Sensorimotor Revision 1.1       |
+ | Board Layout Configuration      |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | Last Modified: October 2018     |
+ +---------------------------------*/
 
 
 #ifndef XPCC_SUPREME_SENSORIMOTOR_HPP
@@ -16,7 +21,7 @@ namespace Board
 
 using systemClock = xpcc::avr::SystemClock;
 
-// arduino compatible footprint
+/* Arduino-compatible pin names */
 using A0 = GpioC0;
 using A1 = GpioC1;
 using A2 = GpioC2;
@@ -67,6 +72,11 @@ namespace spi {
 	using SCK  = D13;
 }
 
+/* inter integrated circuit */
+namespace i2c {
+	using SDA = A4;
+	using SCL = A5;
+}
 
 inline void
 initialize()
@@ -76,47 +86,24 @@ initialize()
 	/* setup motor h-bridge */
 	motor::VSO::setOutput();
 	motor::DIR::setOutput();
-	motor::PWM::setOutput(); //TODO how to enable PWM pin?
+	motor::PWM::setOutput();
 	motor::DIS::setOutput();
 
-	/**TODO:
-		+ how to enable PWM pins
-		+ how to enable analog inputs
-		+ how to enable UART send and recv
-		+ how to enable VBUS usb
-		+ control the motor via SPI
-	*/
-
+	/* connect and setup uart */
 	D0::connect(Uart0::Rx);
 	D1::connect(Uart0::Tx);
 	Uart0::initialize<systemClock, 1000000>(); // 1Mbaud/s
 
-	// xpcc::Clock initialization
-	// Clear Timer on Compare Match Mode
-	/*TCCR0A = (1 << WGM01);
-	TIMSK0 = (1 << OCIE0A);
-#if F_CPU   > 16000000
-	// Set and enable output compare A
-	OCR0A = F_CPU / (1000ul * 256);
-	// Set prescaler 256 and enable timer
-	TCCR0B = (1 << CS02);
-#elif F_CPU > 2000000
-	// Set and enable output compare A
-	OCR0A = F_CPU / (1000ul * 64);
-	// Set prescaler 64 and enable timer
-	TCCR0B = (1 << CS01) | (1 << CS00);
-#elif F_CPU > 1000000
-	// Set and enable output compare A
-	OCR0A = F_CPU / (1000ul * 8);
-	// Set prescaler 64 and enable timer
-	TCCR0B = (1 << CS00);
-#endif
-*/
+	/* connect and setup I2C */
+	i2c::SDA::connect(I2cMaster::Sda);
+	i2c::SCL::connect(I2cMaster::Scl);
+	I2cMaster::initialize<systemClock, I2cMaster::Baudrate::Fast>();
+
 	enableInterrupts();
 
 }
 
-}
+} /* namespace Board */
 
 using namespace Board;
 extern xpcc::IOStream serialStream;
