@@ -30,7 +30,7 @@ namespace supreme {
 template <typename CoreType>
 class communication_ctrl {
 public:
-	enum command_id_t { //TODO: this should be classes
+	enum command_id_t {
 		no_command,
 		data_requested,
 		data_requested_response,
@@ -40,6 +40,7 @@ public:
 		ping_response,
 		set_id,
 		set_id_response,
+		set_pwm_limit,   /* no response */
 	};
 
 	enum command_state_t {
@@ -66,6 +67,7 @@ private:
 	/* motor related */
 	bool                         target_dir = false;
 	uint8_t                      target_pwm = 0;
+	uint8_t                      target_pwm_max = 0;
 
 	/* TODO struct? */
 	command_id_t                 cmd_id    = no_command;
@@ -129,6 +131,7 @@ public:
 
 			case set_voltage:
 			case set_id:
+			case set_pwm_limit:
 				return (motor_id == recv_buffer) ? reading : eating;
 
 			/* responses */
@@ -196,6 +199,11 @@ public:
 				send.add_byte(motor_id);
 				break;
 
+			case set_pwm_limit:
+				ux.set_pwm_limit(target_pwm_max);
+				/* no response needed */
+				break;
+
 			default: /* unknown command */
 				assert(false, 2);
 				break;
@@ -222,6 +230,10 @@ public:
 				}
 				else return error;
 
+			case set_pwm_limit:
+				target_pwm_max = recv_buffer;
+				return verifying;
+
 			default: /* unknown command */ break;
 		}
 		assert(false, 4);
@@ -243,6 +255,7 @@ public:
 
 			case set_voltage:
 			case set_id:
+			case set_pwm_limit:
 				return (num_bytes_eaten <  2) ? eating : finished;
 
 			case data_requested_response:
@@ -280,19 +293,20 @@ public:
 		switch(recv_buffer)
 		{
 			/* single byte commands */
-			case 0xC0: /* 1100.0000 */ cmd_id = data_requested;  break;
-			case 0xD0: /* 1101.0000 */ cmd_id = toggle_led;      break;
+			case 0xC0: /* 1100.0000 */ cmd_id = data_requested;          break;
+			case 0xD0: /* 1101.0000 */ cmd_id = toggle_led;              break;
 
 			/* multi-byte commands */
 			case 0xB0: /* 1011.0000 */ //fall through
 			case 0xB1: /* 1011.0001 */ cmd_id = set_voltage;
-			                           target_dir = recv_buffer & 0x1; break;
-			case 0xE0: /* 1110.0000 */ cmd_id = ping;            break;
-			case 0x70: /* 0111.0000 */ cmd_id = set_id;          break;
+			                           target_dir = recv_buffer & 0x1;   break;
+			case 0xE0: /* 1110.0000 */ cmd_id = ping;                    break;
+			case 0xA0: /* 1010.0000 */ cmd_id = set_pwm_limit;           break;
+			case 0x70: /* 0111.0000 */ cmd_id = set_id;                  break;
 
 			/* read but ignore sensorimotor responses */
-			case 0xE1: /* 1110.0001 */ cmd_id = ping_response;   break;
-			case 0x71: /* 0111.0001 */ cmd_id = set_id_response; break;
+			case 0xE1: /* 1110.0001 */ cmd_id = ping_response;           break;
+			case 0x71: /* 0111.0001 */ cmd_id = set_id_response;         break;
 			case 0x80: /* 1000.0000 */ cmd_id = data_requested_response; break;
 
 			default: /* unknown command */

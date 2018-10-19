@@ -9,6 +9,10 @@
 
 namespace supreme {
 
+namespace defaults {
+	const uint8_t pwm_limit = 32; /* 12,5% duty cycle */
+}
+
 struct Sensors {
 
 	uint16_t position;
@@ -40,6 +44,7 @@ class sensorimotor_core {
 	motor_ifx9201sg  motor;
 
 	uint8_t          watchcat = 0;
+	uint8_t          max_pwm = defaults::pwm_limit;
 
 public:
 
@@ -75,7 +80,8 @@ public:
 
 	}
 
-	void set_target_pwm(uint8_t pwm) { if (pwm <= 128  ) target.pwm = pwm; }
+	void set_pwm_limit (uint8_t lim) { max_pwm = lim; }
+	void set_target_pwm(uint8_t pwm) { target.pwm = pwm < max_pwm ? pwm : max_pwm; }
 	void set_target_dir(bool    dir) { target.dir = dir; }
 
 	void enable()  { enabled = true; watchcat = 0; }
