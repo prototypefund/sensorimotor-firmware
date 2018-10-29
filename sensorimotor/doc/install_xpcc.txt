@@ -1,15 +1,17 @@
 INSTALL XPCC
 
-(copied from http://xpcc.io/installation/ 26.1.2017)
+After cloning the sensorimotor git repository, we need to setup the xpcc embedded framework.
+Please note: XPCC is now developed under the name MODM and the sensorimotor project will soon migrate to MODM as well.
+Parts of this setup description are copied from http://xpcc.io/installation/ 26.1.2017
 
 
 1.basic build system:
--------------------
+--------------------
 	sudo apt-get install python python-jinja2 scons git
 
 
 2.AVR toochain:
--------------
+--------------
 	sudo apt-get install gcc-avr binutils-avr avr-libc avrdude
 
 
@@ -26,14 +28,15 @@ INSTALL XPCC
                      libboost-system-dev libasio-dev
 
 
-5. Clone xpcc
--------------
+5. Clone xpcc into sensorimotor folder:
+--------------------------------------
+	cd <path-to-supreme>/embedded/sensorimotor
 	git clone https://github.com/roboterclubaachen/xpcc.git
 
 
 
-6. Copy sensorimotor board description to subfolder
+6. Copy sensorimotor board description to subfolder:
 ---------------------------------------------------
 	cd ../xpcc/src/xpcc/architecture/platform/board/
-	ls -s <path-to-supreme>/embedded/sensorimotor/sensorimotor sensorimotor
+	ln -s <path-to-supreme>/embedded/sensorimotor/sensorimotor sensorimotor
 
