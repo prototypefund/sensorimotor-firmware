@@ -12,7 +12,6 @@
 #define XPCC_SUPREME_SENSORIMOTOR_HPP
 
 #include <xpcc/architecture/platform.hpp>
-#include <xpcc/debug/logger.hpp>
 
 using namespace xpcc::atmega;
 
@@ -53,7 +52,7 @@ namespace led {
 /* communication */
 namespace rs485 {
 	using drive_enable = D3;
-	using read_disable = A0; 
+	using read_disable = A0;
 }
 
 /* motor control outputs */
@@ -83,6 +82,10 @@ initialize()
 {
 	systemClock::enable();
 
+	/* setup LEDs */
+	led::yellow::setOutput();
+	led::red::setOutput();
+
 	/* setup motor h-bridge */
 	motor::VSO::setOutput();
 	motor::DIR::setOutput();
@@ -90,9 +93,10 @@ initialize()
 	motor::DIS::setOutput();
 
 	/* connect and setup uart */
+	D0::setInput(Gpio::InputType::PullUp);
 	D0::connect(Uart0::Rx);
 	D1::connect(Uart0::Tx);
-	Uart0::initialize<systemClock, 1000000>(); // 1Mbaud/s
+	Uart0::initialize<systemClock, Uart0::Baudrate::MBps1>(); // 1Mbaud/s
 
 	/* connect and setup I2C */
 	i2c::SDA::connect(I2cMaster::Sda);
@@ -106,7 +110,5 @@ initialize()
 } /* namespace Board */
 
 using namespace Board;
-extern xpcc::IOStream serialStream;
 
 #endif	// XPCC_SUPREME_SENSORIMOTOR_HPP
-
