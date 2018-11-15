@@ -1,5 +1,7 @@
 *.o
 *.hex
 *.elf
+*.gch
+tests
 .sconsign.dblite
 

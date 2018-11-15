@@ -26,7 +26,6 @@ struct Sensors {
 		current          = adc::result[adc::current         ];
 		voltage_back_emf = adc::result[adc::voltage_back_emf];
 		voltage_supply   = adc::result[adc::voltage_supply  ];
-		temperature      = adc::result[adc::temperature     ];
 		temperature      = get_temperature_celsius(adc::result[adc::temperature]);
 	}
 };
@@ -93,6 +92,7 @@ public:
 	uint16_t get_voltage_back_emf() { return sensors.voltage_back_emf; }
 	uint16_t get_voltage_supply  () { return sensors.voltage_supply; }
 	uint16_t get_temperature     () { return sensors.temperature; }
+
 };
 
 } /* namespace supreme */

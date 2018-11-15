@@ -2,7 +2,7 @@ DEVICE     = atmega328p
 CLOCK      = 16000000
 PROGRAMMER = -c arduino -P /dev/ttyUSB0 -b 19200 
 OBJECTS    = main.o
-FUSES      = -U lfuse:w:0xCF:m -U hfuse:w:0xD9:m -U efuse:w:0xFE:m
+FUSES      = -U lfuse:w:0xCF:m -U hfuse:w:0xD9:m -U efuse:w:0xFD:m
 
 #        SUT0-----+ +-----CKSEL3
 #        SUT1----+| |+----CKSEL2
@@ -14,7 +14,7 @@ FUSES      = -U lfuse:w:0xCF:m -U hfuse:w:0xD9:m -U efuse:w:0xFE:m
 #        CKSEL0, SUT1..0 = 100 : Ceramic Resonator, slowly rising power
 #        CKOUT           = 0   : no clock output
 # hfuse: 0xD9 (defaults)
-# efuse: 0xFE: xxxx.x110 Brownout detection min:1V7 typ:1V8 max:2V
+# efuse: 0xFD: xxxx.x101 Brownout detection min:2V5 typ:2V7 max:2V9
 # fuses explained: http://www.ladyada.net/learn/avr/fuses.html
 # calculator: http://www.engbedded.com/fusecalc/
 

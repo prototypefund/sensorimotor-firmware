@@ -1,6 +1,19 @@
 namespace supreme {
 namespace local_tests {
 
+struct ExternalSensor {
+	struct Values {
+		int16_t x = -1337;
+		int16_t y = +2342;
+		int16_t z = -4223;
+	} values;
+
+	unsigned ext_sensor_requests = 0;
+
+	Values const& get_values(void) const { return values; }
+	void restart() { ++ext_sensor_requests; }
+};
+
 class test_sensorimotor_core {
 public:
 
@@ -24,6 +37,8 @@ public:
 	uint8_t voltage_pwm = 0;
 	bool    direction = false;
 	bool    enabled = false;
+
+	ExternalSensor sensor_ext;
 };
 
 }} /* namespace supreme::local_tests */

@@ -27,7 +27,7 @@ TODO: create new scheme for command processing:
 */
 namespace supreme {
 
-template <typename CoreType>
+template <typename CoreType, typename ExternalSensorType>
 class communication_ctrl {
 public:
 	enum command_id_t {
@@ -41,6 +41,8 @@ public:
 		set_id,
 		set_id_response,
 		set_pwm_limit,   /* no response */
+		ext_sensor_request,
+		ext_sensor_request_resp,
 	};
 
 	enum command_state_t {
@@ -57,6 +59,7 @@ public:
 
 private:
 	CoreType&                    ux;
+	ExternalSensorType&          exts;
 	uint8_t                      recv_buffer = 0;
 	uint8_t                      recv_checksum = 0;
 	sendbuffer<16>               send;
@@ -82,8 +85,9 @@ private:
 
 public:
 
-	communication_ctrl(CoreType& ux)
+	communication_ctrl(CoreType& ux, ExternalSensorType& exts)
 	: ux(ux)
+	, exts(exts)
 	, send()
 	{
 		read_id_from_EEPROM();
@@ -124,20 +128,24 @@ public:
 		if (recv_buffer > 127) return error;
 		switch(cmd_id)
 		{
+			/* single byte commands */
 			case data_requested:
 			case toggle_led:
 			case ping:
 				return (motor_id == recv_buffer) ? verifying : eating;
 
+			/* multi-byte commands */
 			case set_voltage:
 			case set_id:
 			case set_pwm_limit:
+			case ext_sensor_request:
 				return (motor_id == recv_buffer) ? reading : eating;
 
 			/* responses */
 			case ping_response:           return eating;
 			case set_id_response:         return eating;
 			case data_requested_response: return eating;
+			case ext_sensor_request_resp: return eating;
 
 			default: /* unknown command */ break;
 		}
@@ -154,8 +162,7 @@ public:
 		send.add_word(ux.get_voltage_back_emf());
 		send.add_word(ux.get_voltage_supply());
 		send.add_word(ux.get_temperature());
-		//TODO: external I2C sensor
-		//TODO: integrate enable_status
+		//TODO: integrate state/context fields
 		//TODO: integrate error/status codes
 	}
 
@@ -204,6 +211,18 @@ public:
 				/* no response needed */
 				break;
 
+			case ext_sensor_request:
+				send.add_byte(0x41); /* 0100.0001 */
+				send.add_byte(motor_id);
+				{
+					auto const& s = exts.get_values();
+					send.add_word(s.x);
+					send.add_word(s.y);
+					send.add_word(s.z);
+				}
+				exts.restart();
+				break;
+
 			default: /* unknown command */
 				assert(false, 2);
 				break;
@@ -234,6 +253,10 @@ public:
 				target_pwm_max = recv_buffer;
 				return verifying;
 
+			case ext_sensor_request:
+				//ext_sensor_id = recv_buffer; TODO handle sensor id
+				return verifying;
+
 			default: /* unknown command */ break;
 		}
 		assert(false, 4);
@@ -256,7 +279,11 @@ public:
 			case set_voltage:
 			case set_id:
 			case set_pwm_limit:
+			case ext_sensor_request:
 				return (num_bytes_eaten <  2) ? eating : finished;
+
+			case ext_sensor_request_resp:
+				return (num_bytes_eaten <  7) ? eating : finished;
 
 			case data_requested_response:
 				return (num_bytes_eaten < 11) ? eating : finished;
@@ -303,11 +330,13 @@ public:
 			case 0xE0: /* 1110.0000 */ cmd_id = ping;                    break;
 			case 0xA0: /* 1010.0000 */ cmd_id = set_pwm_limit;           break;
 			case 0x70: /* 0111.0000 */ cmd_id = set_id;                  break;
+			case 0x40: /* 0100.0000 */ cmd_id = ext_sensor_request;      break;
 
 			/* read but ignore sensorimotor responses */
 			case 0xE1: /* 1110.0001 */ cmd_id = ping_response;           break;
 			case 0x71: /* 0111.0001 */ cmd_id = set_id_response;         break;
 			case 0x80: /* 1000.0000 */ cmd_id = data_requested_response; break;
+			case 0x41: /* 0400.0001 */ cmd_id = ext_sensor_request_resp; break;
 
 			default: /* unknown command */
 				return error;

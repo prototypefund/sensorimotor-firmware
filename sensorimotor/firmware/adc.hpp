@@ -81,7 +81,6 @@ namespace adc {
 
 ISR(ADC_vect)
 {
-	led::yellow::set();
 	adc::result[adc::channel] = ADC;         // read result (10 bit)
 	adc::channel = adc::next[adc::channel];  // select next channel
 	adc::set_channel(adc::channel);          // multiplex adc
@@ -90,7 +89,6 @@ ISR(ADC_vect)
 		adc::start_conversion();
 	else
 		adc::conversion_finished = true;
-	led::yellow::reset();
 }
 
 } /* namespace supreme */

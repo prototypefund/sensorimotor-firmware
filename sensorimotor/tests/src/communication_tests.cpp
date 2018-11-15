@@ -97,10 +97,12 @@ TEST_CASE( "ping command can be received and is responded", "[communication]")
 	reset_hardware();
 
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 23 );
 
@@ -147,10 +149,12 @@ TEST_CASE( "data request command can be received and is responded", "[communicat
 	reset_hardware();
 
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 23 );
 
@@ -217,7 +221,8 @@ void send(std::vector<uint8_t> buf) {
 TEST_CASE( "valid commands and responses for other motors is ignored", "[communication]")
 {
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	/* msg for different motor id (to be ignored) */
 	std::vector<uint8_t> ping         = { 0xe0, 42 };
@@ -232,7 +237,8 @@ TEST_CASE( "valid commands and responses for other motors is ignored", "[communi
 
 	reset_hardware();
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 	REQUIRE( com.get_motor_id() == 23 );
 
 	for (auto const& cmd : { ping
@@ -268,10 +274,12 @@ TEST_CASE( "set_id command can be received, id is set and command is responded",
 	reset_hardware();
 
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 23 );
 	uint8_t new_id = 1;
@@ -326,10 +334,12 @@ TEST_CASE( "invalid set_id command is refused when checksum is wrong", "[communi
 	set_motor_id(1);
 
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 1 );
 	uint8_t new_id = 42;
@@ -357,9 +367,11 @@ TEST_CASE( "invalid set_id command is refused when checksum is wrong", "[communi
 TEST_CASE( "invalid set_id command is refused when new id is wrong", "[communication]")
 {
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	core_t ux;
+	exts_t ex;
 
 	std::vector<uint8_t> wrong0 = { 0x70, 1, 128  };
 	std::vector<uint8_t> wrong1 = { 0x70, 1, 255  };
@@ -371,7 +383,7 @@ TEST_CASE( "invalid set_id command is refused when new id is wrong", "[communica
 	for (auto const& cmd : { correct0, correct1, correct2} ) {
 		reset_hardware();
 		set_motor_id(1);
-		com_t com(ux);
+		com_t com(ux, ex);
 		REQUIRE( com.get_motor_id() == 1 );
 
 		send(cmd);
@@ -383,7 +395,7 @@ TEST_CASE( "invalid set_id command is refused when new id is wrong", "[communica
 	for (auto const& cmd : { wrong0, wrong1} ) {
 		reset_hardware();
 		set_motor_id(1);
-		com_t com(ux);
+		com_t com(ux, ex);
 		REQUIRE( com.get_motor_id() == 1 );
 
 		send(cmd);
@@ -397,7 +409,8 @@ TEST_CASE( "invalid set_id command is refused when new id is wrong", "[communica
 TEST_CASE( "multiple pings", "[communication]")
 {
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	/* msg for different motor id (to be ignored) */
 	std::vector<uint8_t> ping     = { 0xe0, 42 };
@@ -408,7 +421,8 @@ TEST_CASE( "multiple pings", "[communication]")
 	reset_hardware();
 	set_motor_id(23);
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 23 );
 
@@ -449,7 +463,8 @@ TEST_CASE( "multiple pings", "[communication]")
 TEST_CASE( "multiple data requests", "[communication]")
 {
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	/* msg for different motor id (to be ignored) */
 	std::vector<uint8_t> data_request     = { 0xC0, 42 };
@@ -460,7 +475,8 @@ TEST_CASE( "multiple data requests", "[communication]")
 	reset_hardware();
 	set_motor_id(23);
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 23 );
 
@@ -500,7 +516,8 @@ TEST_CASE( "multiple data requests", "[communication]")
 TEST_CASE( "find valid messages in garbage", "[communication]")
 {
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	std::vector<uint8_t> ping         = { 0xe0, 23 };
 	std::vector<uint8_t> data_request = { 0xC0, 23 };
@@ -517,7 +534,8 @@ TEST_CASE( "find valid messages in garbage", "[communication]")
 	reset_hardware();
 	set_motor_id(23);
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 23 );
 
@@ -555,10 +573,12 @@ TEST_CASE( "set_pwm_limit command can be received, pwm limit is set and command 
 	reset_hardware();
 
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 23 );
 	uint8_t new_id = 1;
@@ -596,10 +616,12 @@ TEST_CASE( "set_voltage command can be received, pwm and direction is set and co
 	reset_hardware();
 
 	using core_t = test_sensorimotor_core;
-	using com_t = supreme::communication_ctrl<core_t>;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
 
 	core_t ux;
-	com_t com(ux);
+	exts_t ex;
+	com_t com(ux, ex);
 
 	REQUIRE( com.get_motor_id() == 23 );
 	uint8_t new_id = 1;
@@ -632,6 +654,59 @@ TEST_CASE( "set_voltage command can be received, pwm and direction is set and co
 	REQUIRE( Uart0::recv_buffer.size() == 15 );
 	REQUIRE( Uart0::recv_buffer[2] == 0x80 );
 	REQUIRE( Uart0::recv_buffer[3] == 23 );
+	REQUIRE( Uart0::buffer_flushed );
+}
+
+int16_t get_signed_word(uint8_t hi, uint8_t lo) { return (hi << 8) | lo; }
+
+TEST_CASE( "ext_sensor_request command can be received and is responded with data", "[communication]")
+{
+	reset_hardware();
+
+	using core_t = test_sensorimotor_core;
+	using exts_t = ExternalSensor;
+	using com_t = supreme::communication_ctrl<core_t, exts_t>;
+
+	core_t ux;
+	exts_t ex;
+	com_t com(ux, ex);
+
+	REQUIRE( com.get_motor_id() == 23 );
+	uint8_t new_id = 1;
+
+	std::vector<uint8_t> ext_sensor_req_cmd = { 0x40, /*motor_id=*/23, /*sensor_id=*/01 };
+
+	reset_hardware();
+	com.step();
+	REQUIRE( Uart0::recv_buffer.size() == 0 );
+	REQUIRE( Uart0::send_queue.empty() );
+	REQUIRE( com.get_state() == com_t::command_state_t::syncing );
+
+	send(ext_sensor_req_cmd);
+
+	REQUIRE( not Uart0::buffer_flushed );
+
+	REQUIRE( ex.ext_sensor_requests == 0 );
+
+	com.step();
+
+	REQUIRE( ex.ext_sensor_requests == 1 );
+
+	REQUIRE( Uart0::send_queue.empty() );
+	REQUIRE( com.get_state() == com_t::command_state_t::syncing );
+	REQUIRE( com.get_errors() == 0 );
+
+	/* received sensor data package */
+	REQUIRE( Uart0::recv_buffer.size() == 11 );
+	REQUIRE( Uart0::recv_buffer[2] == 0x41 );
+	REQUIRE( Uart0::recv_buffer[3] == 23 );
+
+	REQUIRE( get_signed_word( Uart0::recv_buffer[4]
+	                        , Uart0::recv_buffer[5] ) == -1337 );
+	REQUIRE( get_signed_word( Uart0::recv_buffer[6]
+	                        , Uart0::recv_buffer[7] ) == +2342 );
+	REQUIRE( get_signed_word( Uart0::recv_buffer[8]
+	                        , Uart0::recv_buffer[9] ) == -4223 );
 	REQUIRE( Uart0::buffer_flushed );
 }
 
