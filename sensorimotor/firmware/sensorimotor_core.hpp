@@ -3,7 +3,6 @@
 
 #include <xpcc/architecture/platform.hpp>
 
-#include <motor_ifx9201sg.hpp>
 #include <adc.hpp>
 #include <temperature.hpp>
 #include <common/lowpass.hpp>
@@ -55,6 +54,7 @@ private:
 	uint16_t dt = 0;
 };
 
+template <typename MotorDriverType>
 class sensorimotor_core {
 
 	bool enabled;
@@ -65,7 +65,7 @@ class sensorimotor_core {
 	} target;
 
 	Sensors          sensors;
-	motor_ifx9201sg  motor;
+	MotorDriverType  motor;
 
 	uint8_t          watchcat = 0;
 	uint8_t          max_pwm = defaults::pwm_limit;

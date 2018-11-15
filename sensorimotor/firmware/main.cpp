@@ -10,6 +10,7 @@
 #include <sensorimotor_core.hpp>
 #include <communication.hpp>
 #include <adc.hpp>
+#include <motor_ifx9201sg.hpp>
 #include <external/i2c_sensor.hpp>
 
 /* this is called once TCNT0 = OCR0A = 249 *
@@ -27,9 +28,10 @@ int main()
 	Board::initialize();
 	supreme::adc::init();
 
-	typedef supreme::sensorimotor_core core_t;
-	typedef supreme::ExternalSensor    exts_t;
-	core_t ux;
+	typedef supreme::motor_ifx9201sg           motordriver_t;
+	typedef supreme::sensorimotor_core<motordriver_t> core_t;
+	typedef supreme::ExternalSensor                   exts_t;
+	core_t core;
 	exts_t exts;
 
 	/* Design of the 1kHz main loop:
@@ -46,7 +48,7 @@ int main()
 
 	unsigned long cycles = 0;
 
-	supreme::communication_ctrl<core_t, exts_t> com(ux, exts);
+	supreme::communication_ctrl<core_t, exts_t> com(core, exts);
 
 	bool previous_state = false;
 
@@ -55,7 +57,7 @@ int main()
 		com.step();
 		if (current_state != previous_state) {
 			led::red::set();   // red led on, begin of cycle
-			ux.step();
+			core.step();
 			supreme::adc::restart();
 			++cycles;
 			led::red::reset(); // red led off, end of cycle
