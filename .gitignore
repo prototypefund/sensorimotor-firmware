@@ -2,6 +2,6 @@
 *.hex
 *.elf
 *.gch
-tests
+run_tests
 .sconsign.dblite
 
