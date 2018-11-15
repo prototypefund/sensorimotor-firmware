@@ -131,16 +131,16 @@ List of sensorimotor responses:
 | 02 | 1000.0000 | Response ID       | 0x80               |
 | 03 | 0xxx.xxxx | Motor ID          | IDs 0..127         |
 +----+-----------+-------------------+--------------------+
-| 04 | 0000.00xx | Position          | 10 bit, hi/lo byte |
-| 05 | xxxx.xxxx | Position          | 0..1023 = 0..3V3   |
+| 04 | xxxx.xxxx | Position measured | uint16, 10bit eff. |
+| 05 | xxxx.xxxx | 10bit ADC + LPF   | 0..0xFFFF = 0..3V3 |
 +----+-----------+-------------------+--------------------+
-| 06 | 0000.00xx | Current           | 10 bit, hi/lo byte |
+| 06 | 0000.00xx | Current           | uint16, lower 10bit|
 | 07 | xxxx.xxxx | Current           | 0..1023 = 0..3A3   |
 +----+-----------+-------------------+--------------------+
-| 08 | 0000.00xx | Voltage Back-EMF  | 10 bit, hi/lo byte |
-| 09 | xxxx.xxxx | Voltage Back-EMF  | 0..1023 = 0..13V   |
+| 08 | xxxx.xxxx | Velocity          | signed int16 value |
+| 09 | xxxx.xxxx | derived from pos. | -32768...+32676    |
 +----+-----------+-------------------+--------------------+
-| 10 | 0000.00xx | Voltage Supply    | 10 bit, hi/lo byte |
+| 10 | 0000.00xx | Voltage Supply    | uint16, lower 10bit|
 | 11 | xxxx.xxxx | Voltage Supply    | 0..1023 = 0..13V   |
 +----+-----------+-------------------+--------------------+
 | 12 | xxxx.xxxx | Temperature       | Temp in 0.01°C     |
