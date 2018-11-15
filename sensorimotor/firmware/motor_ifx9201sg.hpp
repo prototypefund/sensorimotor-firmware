@@ -3,6 +3,7 @@
 
 /* motor_ifx9201sg.hpp */
 #include <xpcc/architecture/platform.hpp>
+#include <common/bitscale.hpp>
 
 namespace supreme {
 
@@ -50,7 +51,8 @@ public:
 		else motor::DIR::reset();
 	}
 
-	void set_pwm(uint8_t dc) { OCR1A = dc << 2; }
+	/* TODO set min and max pwm */
+	void set_pwm(uint8_t dc) { OCR1A = promote_N<2>(dc); }
 
 	void enable() { motor::DIS::reset(); }
 	void disable() { motor::DIS::set(); }

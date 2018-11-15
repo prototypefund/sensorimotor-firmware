@@ -159,9 +159,10 @@ public:
 		send.add_byte(motor_id);
 		send.add_word(ux.get_position());
 		send.add_word(ux.get_current());
-		send.add_word(ux.get_voltage_back_emf());
+		send.add_word(ux.get_velocity());
 		send.add_word(ux.get_voltage_supply());
 		send.add_word(ux.get_temperature());
+		//TODO: integrate voltage_back_emf again
 		//TODO: integrate state/context fields
 		//TODO: integrate error/status codes
 	}

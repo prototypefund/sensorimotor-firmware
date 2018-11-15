@@ -6,6 +6,7 @@
 #include <motor_ifx9201sg.hpp>
 #include <adc.hpp>
 #include <temperature.hpp>
+#include <common/lowpass.hpp>
 
 namespace supreme {
 
@@ -13,21 +14,45 @@ namespace defaults {
 	const uint8_t pwm_limit = 32; /* 12,5% duty cycle */
 }
 
-struct Sensors {
-
-	uint16_t position;
+class Sensors {
+public:
+	uint16_t position, position_0;
+	 int16_t velocity;
 	uint16_t current;
 	uint16_t voltage_back_emf;
 	uint16_t voltage_supply;
 	uint16_t temperature;
 
-	void step(void) {
-		position         = adc::result[adc::position        ];
-		current          = adc::result[adc::current         ];
+	Sensors()
+	: lowpass(/*initial_value=*/.0, /*coeff=*/0.1)
+	{}
+
+	void step(void)
+	{
+		position         = lowpass.step( adc::result[adc::position] << 6 ); /* promote to upper bits and lowpass-filter */
+		current          = adc::result[adc::current];
 		voltage_back_emf = adc::result[adc::voltage_back_emf];
-		voltage_supply   = adc::result[adc::voltage_supply  ];
+		voltage_supply   = adc::result[adc::voltage_supply];
 		temperature      = get_temperature_celsius(adc::result[adc::temperature]);
+
+		/* increment dt for velocity averaging.
+		   count time steps up to 1000ms.
+		*/
+		dt += (dt < 1000) ? 1 : 0;
 	}
+
+	/* get averaged velocity and restart averaging */
+	uint16_t restart_velocity_sampling(void) {
+		const auto dp = (int32_t) position - position_0; // calculate difference
+		position_0 = position;                           // keep last position value
+		velocity = ((dp * 1000) / dt) >> 2;              // v = dp/dt with [dt] = ms
+		dt = 0;                                          // reset time delta
+		return velocity;
+	}
+
+private:
+	Lowpass<uint16_t> lowpass;
+	uint16_t dt = 0;
 };
 
 class sensorimotor_core {
@@ -76,7 +101,6 @@ public:
 		/* safety switchoff */
 		if (watchcat < 100) watchcat++;
 		else enabled = false;
-
 	}
 
 	void set_pwm_limit (uint8_t lim) { max_pwm = lim; }
@@ -87,12 +111,12 @@ public:
 	void disable() { enabled = false; }
 	bool is_enabled() const { return enabled; }
 
-	uint16_t get_position        () { return sensors.position; }
-	uint16_t get_current         () { return sensors.current; }
-	uint16_t get_voltage_back_emf() { return sensors.voltage_back_emf; }
-	uint16_t get_voltage_supply  () { return sensors.voltage_supply; }
-	uint16_t get_temperature     () { return sensors.temperature; }
-
+	uint16_t get_position        () const { return sensors.position; }
+	uint16_t get_velocity        ()       { return sensors.restart_velocity_sampling(); }
+	uint16_t get_current         () const { return sensors.current; }
+	uint16_t get_voltage_back_emf() const { return sensors.voltage_back_emf; }
+	uint16_t get_voltage_supply  () const { return sensors.voltage_supply; }
+	uint16_t get_temperature     () const { return sensors.temperature; }
 };
 
 } /* namespace supreme */
