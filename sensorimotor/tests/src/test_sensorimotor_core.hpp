@@ -29,7 +29,8 @@ public:
 
 	uint16_t get_position        () { return 0x1A1B; }
 	uint16_t get_current         () { return 0x2A2B; }
-	uint16_t get_voltage_back_emf() { return 0x3A3B; }
+	uint16_t get_velocity        () { return 0x3A3B; }
+	//uint16_t get_voltage_back_emf() { return 0x0;    } /* currently not in use */
 	uint16_t get_voltage_supply  () { return 0x4A4B; }
 	uint16_t get_temperature     () { return 0x5A5B; }
 

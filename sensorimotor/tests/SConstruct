@@ -6,6 +6,9 @@ env = Environment( PROJECT_NAME = 'sensorimotor_tests'
                  , CXXFLAGS     = ['-std=c++0x']
                  )
 
-tests = env.Program('tests', [ 'src/tests_main.cpp'
-                             , 'src/communication_tests.cpp'])
-
+tests = env.Program('run_tests', [ 'src/tests_main.cpp'
+                                 , 'src/communication_tests.cpp'
+                                 , 'src/median3_tests.cpp'
+                                 , 'src/lowpass_tests.cpp'
+                                 , 'src/bitscale_tests.cpp'
+                                 ])
