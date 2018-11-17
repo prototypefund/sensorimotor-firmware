@@ -27,6 +27,7 @@ int main()
 {
 	Board::initialize();
 	supreme::adc::init();
+	supreme::adc::restart();
 
 	typedef supreme::motor_ifx9201sg           motordriver_t;
 	typedef supreme::sensorimotor_core<motordriver_t> core_t;
@@ -51,7 +52,7 @@ int main()
 	supreme::communication_ctrl<core_t, exts_t> com(core, exts);
 
 	bool previous_state = false;
-
+	core.init_sensors();
 	while(1) /* main loop */
 	{
 		com.step();
@@ -63,7 +64,7 @@ int main()
 			led::red::reset(); // red led off, end of cycle
 			previous_state = current_state;
 		} else
-		exts.step();
+			exts.step();
 	}
 	return 0;
 }

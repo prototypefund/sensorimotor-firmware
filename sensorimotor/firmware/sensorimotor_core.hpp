@@ -15,20 +15,23 @@ namespace defaults {
 
 class Sensors {
 public:
-	uint16_t position, position_0;
-	 int16_t velocity;
-	uint16_t current;
-	uint16_t voltage_back_emf;
-	uint16_t voltage_supply;
-	uint16_t temperature;
+	uint16_t position         = 0;
+	uint16_t current          = 0;
+	uint16_t voltage_back_emf = 0;
+	uint16_t voltage_supply   = 0;
+	uint16_t temperature      = 0;
 
-	Sensors()
-	: lowpass(/*initial_value=*/.0, /*coeff=*/0.1)
-	{}
+	Sensors() { init(); }
+
+	void init(void)
+	{
+		for (uint8_t i = 0; i < 6; ++i)
+			f[i] = (int16_t) adc::result[adc::position];
+	}
 
 	void step(void)
 	{
-		position         = lowpass.step( adc::result[adc::position] << 6 ); /* promote to upper bits and lowpass-filter */
+		position         = adc::result[adc::position] << 6; /* promote to upper bits and lowpass-filter */
 		current          = adc::result[adc::current];
 		voltage_back_emf = adc::result[adc::voltage_back_emf];
 		voltage_supply   = adc::result[adc::voltage_supply];
@@ -37,21 +40,33 @@ public:
 		/* increment dt for velocity averaging.
 		   count time steps up to 1000ms.
 		*/
-		dt += (dt < 1000) ? 1 : 0;
+		if (dt < 1000) ++dt;
+		f[0] = (int16_t) adc::result[adc::position];
 	}
 
-	/* get averaged velocity and restart averaging */
+	/* get velocity and restart averaging */
 	uint16_t restart_velocity_sampling(void) {
-		const auto dp = (int32_t) position - position_0; // calculate difference
-		position_0 = position;                           // keep last position value
-		velocity = ((dp * 1000) / dt) >> 2;              // v = dp/dt with [dt] = ms
-		dt = 0;                                          // reset time delta
+		/* shift velocity regs*/
+		f[5] = f[4];
+		f[4] = f[3];
+		f[3] = f[2];
+		f[2] = f[1];
+		f[1] = f[0];
+
+		const int16_t velocity = (dt < 1000)
+		                       ?
+		                         ((int32_t)  f[0] - f[5]
+		                              + 3 * (f[1] - f[4])
+		                              + 2 * (f[2] - f[3]) ) * 1000 / dt
+		                       : 0; // return 0, if time delta is too long.
+
+		dt = 0; // reset time delta
 		return velocity;
 	}
 
 private:
-	Lowpass<uint16_t> lowpass;
-	uint16_t dt = 0;
+	uint16_t dt = 1000;
+	 int16_t f[6];
 };
 
 template <typename MotorDriverType>
@@ -93,6 +108,8 @@ public:
 			target.pwm = 0;
 		}
 	}
+
+	void init_sensors(void) { sensors.init(); }
 
 	void step(void) {
 		apply_target_values();
