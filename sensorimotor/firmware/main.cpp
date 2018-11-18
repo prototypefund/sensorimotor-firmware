@@ -8,9 +8,9 @@
 
 #include <xpcc/architecture/platform.hpp>
 #include <sensorimotor_core.hpp>
-#include <communication.hpp>
-#include <adc.hpp>
-#include <motor_ifx9201sg.hpp>
+#include <system/communication.hpp>
+#include <system/adc.hpp>
+#include <motor/ifx9201sg.hpp>
 #include <external/i2c_sensor.hpp>
 
 /* this is called once TCNT0 = OCR0A = 249 *

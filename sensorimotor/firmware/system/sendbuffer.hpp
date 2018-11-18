@@ -2,7 +2,7 @@
 #define SUPREME_COMMUNICATION_SENDBUFFER_HPP
 
 #include <xpcc/architecture/platform.hpp>
-#include <assert.hpp>
+#include <system/assert.hpp>
 
 namespace supreme {
 

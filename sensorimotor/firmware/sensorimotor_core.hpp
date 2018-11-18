@@ -3,9 +3,8 @@
 
 #include <xpcc/architecture/platform.hpp>
 
-#include <adc.hpp>
-#include <temperature.hpp>
-#include <common/lowpass.hpp>
+#include <system/adc.hpp>
+#include <common/temperature.hpp>
 
 namespace supreme {
 

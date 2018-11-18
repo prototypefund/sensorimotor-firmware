@@ -3,9 +3,8 @@
 
 #include <xpcc/architecture/platform.hpp>
 #include <avr/eeprom.h>
-#include <assert.hpp>
-
-#include <communication/sendbuffer.hpp>
+#include <system/assert.hpp>
+#include <system/sendbuffer.hpp>
 
 /*
 TODO: create new scheme for command processing:
