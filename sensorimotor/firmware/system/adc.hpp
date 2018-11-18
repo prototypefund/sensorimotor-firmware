@@ -1,3 +1,11 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Sensorimotor Firmware           |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | November 2018                   |
+ +---------------------------------*/
+
 #ifndef SUPREME_ADC_HPP
 #define SUPREME_ADC_HPP
 

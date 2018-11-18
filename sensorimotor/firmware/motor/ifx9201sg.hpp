@@ -1,8 +1,14 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Sensorimotor Firmware           |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | November 2018                   |
+ +---------------------------------*/
+
 #ifndef SUPREME_MOTOR_IFX9201SG_HPP
 #define SUPREME_MOTOR_IFX9201SG_HPP
 
-/* motor_ifx9201sg.hpp */
-#include <xpcc/architecture/platform.hpp>
 #include <common/bitscale.hpp>
 
 namespace supreme {
@@ -57,6 +63,8 @@ public:
 	void enable() { motor::DIS::reset(); }
 	void disable() { motor::DIS::set(); }
 };
+
+using motordriver_t = motor_ifx9201sg;
 
 } /* namespace supreme */
 

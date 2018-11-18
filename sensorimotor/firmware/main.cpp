@@ -11,7 +11,6 @@
 #include <system/core.hpp>
 #include <system/communication.hpp>
 #include <system/adc.hpp>
-#include <motor/ifx9201sg.hpp>
 #include <external/i2c_sensor.hpp>
 
 /* this is called once TCNT0 = OCR0A = 249 *
@@ -30,9 +29,8 @@ int main()
 	supreme::adc::init();
 	supreme::adc::restart();
 
-	typedef supreme::motor_ifx9201sg           motordriver_t;
-	typedef supreme::sensorimotor_core<motordriver_t> core_t;
-	typedef supreme::ExternalSensor                   exts_t;
+	typedef supreme::sensorimotor_core<supreme::motordriver_t> core_t;
+	typedef supreme::ExternalSensor                            exts_t;
 	core_t core;
 	exts_t exts;
 

@@ -1,5 +1,13 @@
-#ifndef SUPREME_COMMUNICATION
-#define SUPREME_COMMUNICATION
+/*---------------------------------+
+ | Supreme Machines                |
+ | Sensorimotor Firmware           |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | November 2018                   |
+ +---------------------------------*/
+
+#ifndef SUPREME_COMMUNICATION_HPP
+#define SUPREME_COMMUNICATION_HPP
 
 #include <xpcc/architecture/platform.hpp>
 #include <avr/eeprom.h>
@@ -417,4 +425,4 @@ public:
 
 } /* namespace supreme */
 
-#endif /* SUPREME_COMMUNICATION */
+#endif /* SUPREME_COMMUNICATION_HPP */

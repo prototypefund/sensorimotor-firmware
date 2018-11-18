@@ -8,8 +8,8 @@
  +---------------------------------*/
 
 
-#ifndef XPCC_SUPREME_SENSORIMOTOR_HPP
-#define XPCC_SUPREME_SENSORIMOTOR_HPP
+#ifndef SUPREME_SENSORIMOTOR_REV1_1_HPP
+#define SUPREME_SENSORIMOTOR_REV1_1_HPP
 
 #include <xpcc/architecture/platform.hpp>
 
@@ -113,11 +113,13 @@ initialize()
 	I2cMaster::initialize<systemClock, I2cMaster::Baudrate::Fast>();
 
 	enableInterrupts();
-
 }
 
 } /* namespace Board */
 
 using namespace Board;
 
-#endif	// XPCC_SUPREME_SENSORIMOTOR_HPP
+#include <motor/ifx9201sg.hpp>
+
+
+#endif /* SUPREME_SENSORIMOTOR_REV1_1_HPP */

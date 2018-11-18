@@ -1,7 +1,13 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Sensorimotor Firmware           |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | November 2018                   |
+ +---------------------------------*/
+
 #ifndef SUPREME_SENSORIMOTOR_CORE_HPP
 #define SUPREME_SENSORIMOTOR_CORE_HPP
-
-#include <xpcc/architecture/platform.hpp>
 
 #include <system/adc.hpp>
 #include <common/temperature.hpp>

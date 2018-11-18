@@ -5,8 +5,8 @@
  | October 2018                    |
  +---------------------------------*/
 
-#ifndef SUPREME_I2C_SENSOR
-#define SUPREME_I2C_SENSOR
+#ifndef SUPREME_I2C_SENSOR_HPP
+#define SUPREME_I2C_SENSOR_HPP
 
 #include <xpcc/architecture/platform.hpp>
 #include <xpcc/processing.hpp>
@@ -104,4 +104,4 @@ public:
 
 } /* namespace supreme */
 
-#endif /* SUPREME_I2C_SENSOR */
+#endif /* SUPREME_I2C_SENSOR_HPP */

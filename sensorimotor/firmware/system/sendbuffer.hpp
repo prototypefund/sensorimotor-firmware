@@ -1,5 +1,13 @@
-#ifndef SUPREME_COMMUNICATION_SENDBUFFER_HPP
-#define SUPREME_COMMUNICATION_SENDBUFFER_HPP
+/*---------------------------------+
+ | Supreme Machines                |
+ | Sensorimotor Firmware           |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | November 2018                   |
+ +---------------------------------*/
+
+#ifndef SUPREME_SENDBUFFER_HPP
+#define SUPREME_SENDBUFFER_HPP
 
 #include <xpcc/architecture/platform.hpp>
 #include <system/assert.hpp>
@@ -48,7 +56,7 @@ private:
 		checksum = chk_init;
 	}
 
-	// TODO move to communication interface class
+	// TODO move to (future) communication interface class
 	void send_mode() {
 		xpcc::delayNanoseconds(50); // wait for signal propagation
 		rs485::read_disable::set();
@@ -65,4 +73,4 @@ private:
 
 } /* namespace supreme */
 
-#endif /* SUPREME_COMMUNICATION_SENDBUFFER_HPP */
+#endif /* SUPREME_SENDBUFFER_HPP */
