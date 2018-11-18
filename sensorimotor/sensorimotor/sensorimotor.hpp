@@ -43,6 +43,15 @@ using D11 = GpioB3;
 using D12 = GpioB4;
 using D13 = GpioB5;
 
+
+namespace adc_channel {
+	const uint8_t position         = 1,
+	              current          = 7,
+	              voltage_back_emf = 3,
+	              voltage_supply   = 6,
+	              temperature      = 2;
+}
+
 /* leds */
 namespace led {
 	using yellow = D5;
