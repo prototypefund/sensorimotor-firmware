@@ -1,0 +1,15 @@
+READING + RESTORING EEPROM with AVRDUDE
+---------------------------------------
+
+Whenever you flash the firmware, EEPROM gets erased, in order to keep EEPROM contents you can perform the following:
+
+
+reading the eeprom:
+
+    avrdude -c arduino -P /dev/ttyUSB0 -b 19200 -p atmega328p -U eeprom:r:ux0_eeprom.hex:i
+
+
+restoring the eeprom:
+
+    avrdude -c arduino -P /dev/ttyUSB0 -b 19200 -p atmega328p -U eeprom:w:ux0_eeprom.hex:i
+

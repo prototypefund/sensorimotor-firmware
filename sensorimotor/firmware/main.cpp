@@ -7,7 +7,8 @@
  +---------------------------------*/
 
 #include <xpcc/architecture/platform.hpp>
-#include <sensorimotor_core.hpp>
+#include <boards/sensorimotor_rev1_1.hpp>
+#include <system/core.hpp>
 #include <system/communication.hpp>
 #include <system/adc.hpp>
 #include <motor/ifx9201sg.hpp>

@@ -34,9 +34,3 @@ Parts of this setup description are copied from http://xpcc.io/installation/ 26.
 	git clone https://github.com/roboterclubaachen/xpcc.git
 
 
-
-6. Copy sensorimotor board description to subfolder:
----------------------------------------------------
-	cd ../xpcc/src/xpcc/architecture/platform/board/
-	ln -s <path-to-supreme>/embedded/sensorimotor/sensorimotor sensorimotor
-
