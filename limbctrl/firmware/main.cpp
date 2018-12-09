@@ -1,3 +1,9 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ +---------------------------------*/
+
 #include <xpcc/architecture/platform.hpp>
 #include <boards/limbctrl_f411re.hpp>
 #include <src/common.hpp>

@@ -1,24 +1,21 @@
-/* 
-   Supreme Machines
-   Limb Controller
-   STM32 Cortex F411RE 
-*/
+/*---------------------------------+
+ | Supreme Machines                |
+ | Limb Controller \w STM32F411RE  |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ +---------------------------------*/
 
 #ifndef SUPREME_LIMBCTRL_F411RE_HPP
 #define SUPREME_LIMBCTRL_F411RE_HPP
 
 #include <xpcc/architecture/platform.hpp>
-//#include <xpcc/debug/logger.hpp>
-//#define XPCC_BOARD_HAS_LOGGER
 
 using namespace xpcc::stm32;
 
-//TODO rename Board to Limbcontroller?
 namespace Board
 {
-
-/// STM32F411RE running at 96MHz generated from the internal 16MHz crystal
-// Dummy clock for devices
+	/* STM32F411RE is running at 96MHz
+	   generated from the internal 16MHz crystal */
 
 struct systemClock {
 	static constexpr uint32_t Frequency = 96 * MHz1;
@@ -98,14 +95,9 @@ using com_pwr_en = GpioA6;
 
 
 namespace i2c {
-    using sda = GpioC9;
-    using scl = GpioA8;
+	using sda = GpioC9;
+	using scl = GpioA8;
 }
-
-
-//using Button = xpcc::GpioInverted<GpioInputC13>;
-//using LedD13 = D13;
-//using Leds = xpcc::SoftwareGpioPort< LedD13 >;
 
 
 
@@ -184,7 +176,6 @@ initialize()
 	mot_pwr_en::setOutput();
 	mot_pwr_en::reset(); // Note: This can currently not be shut down, and is a work-around for the flipped MOSFET, see ISSUE-x
 
-
 	/* init LEDs */
 	led_ylw::setOutput();
 	led_red::setOutput();
@@ -199,17 +190,10 @@ initialize()
 
 	/* enable power for rs485 interfaces */
 	com_pwr_en::setOutput();
-	com_pwr_en::set(); 
+	com_pwr_en::set();
 
+} /* initialize */
 
+} /* namespace supreme */
 
-//qb:	Button::setInput();
-//qb:	Button::setInputTrigger(Gpio::InputTrigger::RisingEdge);
-//qb:	Button::enableExternalInterrupt();
-//	Button::enableExternalInterruptVector(12);
-
-}
-
-}
-
-#endif	// SUPREME_LIMBCTRL_F411RE_HPP
+#endif /* SUPREME_LIMBCTRL_F411RE_HPP */

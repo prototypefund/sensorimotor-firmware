@@ -1,3 +1,9 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ +---------------------------------*/
+
 #include <src/common.hpp>
 
 namespace supreme {
