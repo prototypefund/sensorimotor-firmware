@@ -1,5 +1,5 @@
 #include <xpcc/architecture/platform.hpp>
-
+#include <boards/limbctrl_f411re.hpp>
 #include <src/common.hpp>
 #include <src/timer.hpp>
 #include <src/spinalcord.hpp>
