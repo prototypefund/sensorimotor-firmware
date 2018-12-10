@@ -1,3 +1,10 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | December 2018                   |
+ +---------------------------------*/
+
 #ifndef SUPREME_LIMBCONTROLLER_MATH
 #define SUPREME_LIMBCONTROLLER_MATH
 
@@ -10,7 +17,7 @@ namespace supreme {
 /* spinalcord data:
    MSB is sign: 0=pos, 1=neg
 
-   sbbb.bbbb => 7 bit of data, 0..32767 for absolute values
+   sbbb.bbbb.bbbb.bbbb => 15 bit of data, 0..32767 for absolute values
 */
 typedef std::uint16_t scdata_t;
 

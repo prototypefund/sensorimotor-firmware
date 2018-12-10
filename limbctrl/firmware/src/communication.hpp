@@ -1,3 +1,10 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | December 2018                   |
+ +---------------------------------*/
+
 #ifndef SUPREME_LIMBCTRL_COMMUNICATION_HPP
 #define SUPREME_LIMBCTRL_COMMUNICATION_HPP
 

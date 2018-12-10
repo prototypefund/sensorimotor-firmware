@@ -1,3 +1,10 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | December 2018                   |
+ +---------------------------------*/
+
 #ifndef SUPREME_LIMBCTRL_SPINALCORD_HPP
 #define SUPREME_LIMBCTRL_SPINALCORD_HPP
 
@@ -47,10 +54,10 @@ public:
 			auto const& s = m.get_status_data();
 			this->add_word(s.position);
 			this->add_word(s.current);
-			this->add_word(s.voltage_back_emf);
+			this->add_word(s.velocity);
 			this->add_word(s.voltage_supply);
 			this->add_word(s.temperature);
-			//TODO add velocity and target voltage
+			//TODO add voltage_backemf and target voltage readback
 		}
 		/*reserved*/
 		for (unsigned i = this->size(); i < BufferSize-1; ++i)

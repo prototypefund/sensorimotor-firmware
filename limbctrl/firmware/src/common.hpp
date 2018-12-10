@@ -2,6 +2,7 @@
  | Supreme Machines                |
  | Matthias Kubisch                |
  | kubisch@informatik.hu-berlin.de |
+ | December 2018                   |
  +---------------------------------*/
 
 #ifndef SUPREME_LIMBCTRL_COMMON_HPP

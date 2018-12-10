@@ -1,3 +1,10 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | December 2018                   |
+ +---------------------------------*/
+
 #include <src/math.hpp>
 
 namespace supreme {
@@ -25,7 +32,5 @@ scdata_t float_to_sc(float f)
 		value |= 0x8000;
 	return value;
 }
-
-
 
 } /* namespace supreme */

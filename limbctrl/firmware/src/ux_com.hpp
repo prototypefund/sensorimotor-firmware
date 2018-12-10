@@ -1,3 +1,10 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | December 2018                   |
+ +---------------------------------*/
+
 #ifndef SUPREME_LIMBCONTROLLER_UX_COM
 #define SUPREME_LIMBCONTROLLER_UX_COM
 
@@ -46,9 +53,9 @@ public:
 
 	struct StatusData_t {
 		uint16_t position;
-		//TODO velocity
+		uint16_t velocity;
 		uint16_t current;
-		uint16_t voltage_back_emf;
+		//uint16_t voltage_back_emf; <-- currently not in use
 		uint16_t voltage_supply;
 		uint16_t temperature;
 	};
@@ -205,11 +212,12 @@ private:
 
 	recv_state_t process_response()
 	{
-		status_data.position         = recv_msg.get_word( 4); //TODO velocity
+		status_data.position         = recv_msg.get_word( 4);
 		status_data.current          = recv_msg.get_word( 6);
-		status_data.voltage_back_emf = recv_msg.get_word( 8);
+		status_data.velocity         = recv_msg.get_word( 8);
 		status_data.voltage_supply   = recv_msg.get_word(10);
 		status_data.temperature      = recv_msg.get_word(12);
+		//TODO add voltage_backemf and target voltage readback
 		connection_status = connection_status_t::responded;
 		return finished;
 	}

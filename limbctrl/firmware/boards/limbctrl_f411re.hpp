@@ -3,6 +3,7 @@
  | Limb Controller \w STM32F411RE  |
  | Matthias Kubisch                |
  | kubisch@informatik.hu-berlin.de |
+ | December 2018                   |
  +---------------------------------*/
 
 #ifndef SUPREME_LIMBCTRL_F411RE_HPP

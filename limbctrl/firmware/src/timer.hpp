@@ -1,10 +1,14 @@
+/*---------------------------------+
+ | Supreme Machines                |
+ | Matthias Kubisch                |
+ | kubisch@informatik.hu-berlin.de |
+ | December 2018                   |
+ +---------------------------------*/
+
 #ifndef SUPREME_LIMBCTRL_TIMER_HPP
 #define SUPREME_LIMBCTRL_TIMER_HPP
 
 #include <xpcc/architecture/platform.hpp>
-
-
-//TODO make a timerclass of that
 
 template <typename TimerType, unsigned Period>
 static void
