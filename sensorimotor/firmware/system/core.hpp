@@ -16,6 +16,10 @@ namespace supreme {
 
 namespace defaults {
 	const uint8_t pwm_limit = 32; /* 12,5% duty cycle */
+
+	const int16_t lut_1byX[501] = { /* TODO: reduce memory footprint of this LUT */
+	   0, 1000, 500, 333, 250, 200, 166, 142, 125, 111, 100, 90, 83, 76, 71, 66, 62, 58, 55, 52, 50, 47, 45, 43, 41, 40, 38, 37, 35, 34, 33, 32, 31, 30, 29, 28, 27, 27, 26, 25, 25, 24, 23, 23, 22, 22, 21, 21, 20, 20, 20, 19, 19, 18, 18, 18, 17, 17, 17, 16, 16, 16, 16, 15, 15, 15, 15, 14, 14, 14, 14, 14, 13, 13, 13, 13, 13, 12, 12, 12, 12, 12, 12, 12, 11, 11, 11, 11, 11, 11, 11, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2
+	};
 }
 
 class Sensors {
@@ -45,8 +49,10 @@ public:
 		/* increment dt for velocity averaging.
 		   count time steps up to 1000ms.
 		*/
-		if (dt < 1000) ++dt;
-		f[0] = (int16_t) adc::result[adc::position];
+		if (dt < 1000) ++dt; // increment time delta for differentiator
+
+		/* additional simple IIR lowpass filter */
+		f[0] = (int16_t) (f[0] + adc::result[adc::position]) >> 1;
 	}
 
 	/* get velocity and restart averaging */
@@ -58,12 +64,21 @@ public:
 		f[2] = f[1];
 		f[1] = f[0];
 
-		const int16_t velocity = (dt < 1000)
-		                       ?
-		                         ((int32_t)  f[0] - f[5]
-		                              + 3 * (f[1] - f[4])
-		                              + 2 * (f[2] - f[3]) ) * 1000 / dt
-		                       : 0; // return 0, if time delta is too long.
+		if (dt == 1000) { dt = 0; return 0; } // return 0, if time delta is too long.
+
+		int16_t g = (dt < 500) ? defaults::lut_1byX[dt] : 1;
+
+		/* Differentiation filter with noise reduction
+		   optimized for integer arithmetics:
+		   See Paper: "One-Sided Differentiators" by Pavel Holoborodko
+		   http://www.holoborodko.com/pavel/ August 24, 2009
+		   Note: Velocity is dp/(dt*4) to allow for enough headroom.
+		         Position is promoted by factor of 64 (see above),
+		         and hence the divisor of 16 of this filter (see paper) omitted.
+		*/
+		int16_t velocity = ((int32_t)  f[0] - f[5]
+		                        + 3 * (f[1] - f[4])
+		                        + 2 * (f[2] - f[3])) * g;
 
 		dt = 0; // reset time delta
 		return velocity;

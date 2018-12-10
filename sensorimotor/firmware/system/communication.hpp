@@ -119,6 +119,7 @@ public:
 		eeprom_write_byte((uint8_t*)23, (new_id | 0x80));
 	}
 
+	inline
 	bool byte_received(void) {
 		bool result = Uart0::read(recv_buffer);
 		if (result)
@@ -418,6 +419,7 @@ public:
 		return true; // continue
 	}
 
+	inline
 	void step() {
 		while(receive_command());
 	}

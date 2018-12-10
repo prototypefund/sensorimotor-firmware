@@ -43,7 +43,7 @@ public:
 		add_checksum();
 		send_mode();
 		Uart0::write(buffer, ptr);
-		Uart0::flushWriteBuffer();
+		Uart0::flushWriteBuffer();    //TODO do not wait here, set an flag and check in com step to switch into recv mode again
 		receive_mode();
 		/* prepare next */
 		ptr = NumSyncBytes;
