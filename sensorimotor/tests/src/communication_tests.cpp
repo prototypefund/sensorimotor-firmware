@@ -1,4 +1,4 @@
-#include <communication.hpp>
+#include <system/communication.hpp>
 #include <xpcc/architecture/platform.hpp>
 #include "./catch_1.10.0.hpp"
 
