@@ -12,7 +12,7 @@
 #include <src/spinalcord.hpp>
 #include <src/communication.hpp>
 
-#include <src/ux_com.hpp>
+#include <src/motorcord.hpp>
 
 using namespace Board;
 using namespace supreme;
