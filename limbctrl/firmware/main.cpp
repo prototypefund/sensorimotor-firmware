@@ -30,7 +30,7 @@ enum CycleState {
 	receiving,
 	transmitting,
 	receiving_2,
-	writing_motors,
+	writing_motors, //TODO rename
 	idle,
 	duplicate_id,
 };
@@ -39,7 +39,7 @@ enum CycleState {
    with 10 bit per byte (8N1)
    -> 3.34 us per byte
 */
-constexpr uint8_t board_id = 1;    //TODO read from EEPROM
+constexpr uint8_t board_id = 3;    //TODO read from EEPROM
 
 constexpr unsigned byte_transmission_time_us = 10; //TODO
 constexpr unsigned deadtime_us = 20;
@@ -87,7 +87,7 @@ void signal_leading(uint8_t ref_id) {
 volatile bool rx_timed_out = false;
 volatile bool sendnow      = false;
 volatile bool syncnow      = false;
-volatile bool write_motors = false;
+volatile bool write_motors = false; //TODO rename
 
 
 void apply_global_sync(uint8_t ref_id) {
@@ -134,6 +134,13 @@ main()
 
 	uint8_t cycles = 0;
 
+	xpcc::delayMicroseconds(500); // give motors some time to boot up TODO: can we do better?
+	if (not is_trunk_controller)
+		motorcord.initialize(&write_motors); /* ping and setup */
+
+	/* Enable reading of accelsensor, TODO: where to put this? */
+	if (board_id == 0)
+		motorcord.set_motors()[0].enable_ext_sensor_reading();
 
 	while (1)
 	{
@@ -264,7 +271,7 @@ main()
 			break;
 
 		case writing_motors:
-			switch( motorcord.transmit(write_motors) )
+			switch( motorcord.transmit(&write_motors) )
 			{
 			case MotorCord_t::State_t::done:
 				state = idle;

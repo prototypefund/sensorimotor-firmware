@@ -21,6 +21,7 @@ class sendbuffer {
 	static const unsigned NumSyncBytes = 2;
 	static constexpr uint8_t chk_init = (uint8_t) (NumSyncBytes*SyncByte);
 	typedef std::array<uint8_t, N> Buffer_t;
+
 	uint16_t ptr = NumSyncBytes;
 	Buffer_t buffer;
 	uint8_t  checksum = chk_init;
@@ -71,14 +72,15 @@ private:
 
 template <typename Interface_t, unsigned N>
 class recvbuffer {
-public:
+
 	typedef std::array<uint8_t, N> Buffer_t;
 
-	Buffer_t buffer;   // TODO make these vars private
-	uint8_t  checksum;
-	uint8_t  data;
+	Buffer_t buffer;
+	uint8_t  checksum = 0;
+	uint8_t  data = 0;
 	unsigned ptr = 0;
 
+public:
 	recvbuffer() : buffer() {
 		buffer.fill(0);
 	}
@@ -107,6 +109,10 @@ public:
 		uint16_t result = buffer[offset] << 8;
 		return result + buffer[offset+1];
 	}
+
+	bool verify(void) const { return 0 == checksum; }
+	uint8_t get_data(void) const { return data; }
+	Buffer_t const& get_buffer(void) const { return buffer; }
 };
 
 } /* namespace supreme */

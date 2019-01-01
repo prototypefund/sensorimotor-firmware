@@ -48,10 +48,19 @@ public:
 	};
 
 
-	MotorCord(target_voltage_t& voltages)
-	: voltages(voltages)
+	MotorCord(target_voltage_t& voltages) : voltages(voltages) {}
+
+	/* ping motors and setup */
+	void initialize(volatile bool* is_timed_out)
 	{
-		// TODO ping motors...and check if motors are connected correctly.
+		for (auto& m: motors) {
+			unsigned trials = 0;
+			while(not m.ping_and_setup(is_timed_out)) {
+				++trials;
+				if (trials >= 1000) assert(false, 0xFF);
+			}
+		}
+
 	}
 
 	void prepare(void) {
@@ -67,22 +76,32 @@ public:
 	}
 
 	/* after preparing motor commands,
-	   transmit() can be called multiple times,
-	   it returns true times the number of motors */
-	State_t transmit(bool is_timeout_out)
+	   transmit() must be called multiple times,
+	   until <done> */
+	State_t transmit(volatile bool* is_timed_out)
 	{
-		assert(idx < NumMotors, 7);
-
-		if (motors[idx].step(is_timeout_out)) {
-			++idx;
-			state = (idx < NumMotors) ? waiting_for_next : done;
-		} else
-			state = pending;
+		if (idx < NumMotors)
+		{
+			if (motors[idx].step(is_timed_out)) {
+				++idx; state = waiting_for_next;
+			} else state = pending;
+		}
+		else if (idx < 2*NumMotors)
+		{
+			if (motors[idx%NumMotors].read_ext_sensor(is_timed_out)) {
+				++idx; state = waiting_for_next;
+			} else state = pending;
+		}
+		else {
+			assert(idx == 2*NumMotors, 12);
+			state = done;
+		}
 
 		return state;
 	}
 
 	motorarray_t const& get_motors(void) const { return motors; }
+	motorarray_t &      set_motors(void)       { return motors; }
 
 private:
 

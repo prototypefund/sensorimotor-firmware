@@ -59,7 +59,16 @@ public:
 			this->add_word(s.temperature);
 			//TODO add voltage_backemf and target voltage readback
 		}
-		/*reserved*/
+
+		/* add external sensor's data
+		   TODO: increase slot buffer size and transmit for each motor.
+		 */
+		auto const& s = motors[0].get_status_data();
+		this->add_word(s.ext_sensor[0]);
+		this->add_word(s.ext_sensor[1]);
+		this->add_word(s.ext_sensor[2]);
+
+		/* fill reserved */
 		for (unsigned i = this->size(); i < BufferSize-1; ++i)
 			this->add_byte(0xEE);
 		/* checksum is added automagically */

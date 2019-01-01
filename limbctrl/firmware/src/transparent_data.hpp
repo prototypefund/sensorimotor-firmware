@@ -72,8 +72,8 @@ public:
 	}
 
 	void write(void) {
-		for (unsigned i = 2; i < recv.buffer.size()-1; ++i)
-			send.add_byte(recv.buffer[i]);
+		for (unsigned i = 2; i < recv.get_buffer().size()-1; ++i)
+			send.add_byte(recv.get_buffer()[i]);
 
 		assert(send.size() == NumTransparentBytes-1, 18);
 		send.transmit();
@@ -83,12 +83,12 @@ private:
 	recv_state_t reset_buffer() { recv.reset(); return recv_state_t::synchronizing; }
 
 	recv_state_t verify_checksum() {
-		return (recv.checksum == 0) ? recv_state_t::success : recv_state_t::error;
+		return recv.verify() ? recv_state_t::success : recv_state_t::error;
 	}
 
 	recv_state_t get_sync_bytes()
 	{
-		if (recv.data != SyncByte) {
+		if (recv.get_data() != SyncByte) {
 			sync_state = false;
 			return recv_state_t::done;
 		}
@@ -103,7 +103,7 @@ private:
 		return recv_state_t::synchronizing;
 	}
 
-	recv_state_t get_id() { return (recv.data == 0xff) ? reading_data : error; }
+	recv_state_t get_id() { return (recv.get_data() == 0xff) ? reading_data : error; }
 
 	recv_state_t get_data() {
 		return (recv.bytes_received() < NumTransparentBytes) ? reading_data : validating;
